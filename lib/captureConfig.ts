@@ -23,17 +23,8 @@ export const DEFAULT_SETTINGS: WebShotSettings = {
   defaultFormat: 'png',
   defaultScale: 2,
   defaultQuality: 0.92,
-  autoDownload: true,
   scrollPad: 200,
   captureDelay: 150,
-};
-
-export const FORMAT_MIME: Record<string, string> = {
-  png: 'image/png',
-  jpeg: 'image/jpeg',
-  webp: 'image/webp',
-  svg: 'image/svg+xml',
-  pdf: 'application/pdf',
 };
 
 export const FORMAT_EXTENSIONS: Record<string, string> = {

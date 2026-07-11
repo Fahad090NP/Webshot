@@ -34,10 +34,6 @@ export interface PageDimensions {
   devicePixelRatio: number;
 }
 
-export interface CaptureProgress {
-  complete: number;
-}
-
 export interface WebShotSettings {
   zoomCapture: boolean;
   blockInteractions: boolean;
@@ -45,7 +41,6 @@ export interface WebShotSettings {
   defaultFormat: OutputFormat;
   defaultScale: number;
   defaultQuality: number;
-  autoDownload: boolean;
   scrollPad: number;
   captureDelay: number;
 }

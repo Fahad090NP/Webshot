@@ -152,19 +152,6 @@ export function canvasToBlob(
   );
 }
 
-export function dataUriToBlob(dataUri: string): Blob {
-  const parts: string[] = dataUri.split(',');
-  const mimeMatch: RegExpMatchArray | null = (parts[0] ?? '').match(/:(.*?);/);
-  const mimeString: string = mimeMatch?.[1] ?? 'image/png';
-  const byteString: string = atob(parts[1] ?? '');
-  const ab: ArrayBuffer = new ArrayBuffer(byteString.length);
-  const ia: Uint8Array = new Uint8Array(ab);
-  for (let i: number = 0; i < byteString.length; i++) {
-    ia[i] = byteString.charCodeAt(i);
-  }
-  return new Blob([ab], { type: mimeString });
-}
-
 export function getFilename(url: string, format: OutputFormat): string {
   const ext: string = FORMAT_EXTENSIONS[format] ?? 'png';
   const path: string = url.split('?')[0]?.split('#')[0] ?? '';

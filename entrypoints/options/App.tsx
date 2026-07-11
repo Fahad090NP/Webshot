@@ -118,17 +118,6 @@ function App(): React.ReactElement {
       <section className="section">
         <h2 className="sectionTitle">Capture Behavior</h2>
 
-        <label className="field fieldToggle">
-          <span className="fieldLabel">Auto-download after capture</span>
-          <input
-            type="checkbox"
-            checked={settings.autoDownload}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>): void => {
-              updateSetting('autoDownload', e.target.checked);
-            }}
-          />
-        </label>
-
         <label className="field">
           <span className="fieldLabel">
             Scroll Pad (px) — overlap between scroll tiles
