@@ -1,4 +1,12 @@
-// Shared types for the Webshot extension
+// Shared type definitions and interfaces for the Webshot extension.
+
+export interface CapturedImage {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  dataUri: string;
+}
 
 export type CaptureMode = 'fullPage' | 'viewport' | 'selection';
 
