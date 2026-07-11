@@ -359,19 +359,26 @@ async function finalizeCapture(): Promise<void> {
     return;
   }
 
-  const dataUri: string = await exportCaptureAsDataUri();
-  const filename: string = getFilename(
-    window.location.href,
-    currentRequest.format,
-  );
+  try {
+    const dataUri: string = await exportCaptureAsDataUri();
+    const filename: string = getFilename(
+      window.location.href,
+      currentRequest.format,
+    );
 
-  const a: HTMLAnchorElement = document.createElement('a');
-  a.href = dataUri;
-  a.download = filename;
-  a.click();
+    const a: HTMLAnchorElement = document.createElement('a');
+    a.href = dataUri;
+    a.download = filename;
+    a.click();
 
-  browser.runtime.sendMessage({ type: 'captureBlob' }).catch((): void => {});
-  cleanup();
+    browser.runtime.sendMessage({ type: 'captureBlob' }).catch((): void => {});
+  } catch {
+    browser.runtime
+      .sendMessage({ type: 'captureError', data: { message: 'Export failed' } })
+      .catch((): void => {});
+  } finally {
+    cleanup();
+  }
 }
 
 async function exportCaptureAsDataUri(): Promise<string> {
