@@ -12,7 +12,7 @@
     "zip": "wxt zip",
     "zip:firefox": "wxt zip -b firefox",
     "compile": "tsc --noEmit",
-    "lint": "eslint .; e=$?; markdownlint '**/*.md' --ignore node_modules --ignore inspirations --ignore AGENTS.md; m=$?; exit $((e | m))",
+    "lint": "eslint . && markdownlint '**/*.md' --ignore node_modules --ignore inspirations --ignore AGENTS.md",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
