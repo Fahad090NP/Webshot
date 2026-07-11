@@ -1,0 +1,8 @@
+.wxt/
+.output/
+node_modules/
+dist/
+public/
+inspirations/
+bun.lock
+*.svg
