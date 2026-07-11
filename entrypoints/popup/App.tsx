@@ -10,12 +10,7 @@ function renderStatus(
   error: string,
 ): React.ReactElement | null {
   if (state === 'error') return <p className="errorMsg">{error}</p>;
-  if (state === 'done')
-    return (
-      <p className="successMsg">
-        Download started! Check your downloads folder.
-      </p>
-    );
+  if (state === 'done') return <p className="successMsg">Download complete.</p>;
   return null;
 }
 

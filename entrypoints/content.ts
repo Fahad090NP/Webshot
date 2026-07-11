@@ -6,11 +6,7 @@ import type {
   CaptureTile,
   WebShotSettings,
 } from '@/lib/types';
-import {
-  renderToCanvas,
-  canvasToBlob,
-  computeScrollGrid,
-} from '@/lib/captureEngine';
+import { renderToCanvas, computeScrollGrid } from '@/lib/captureEngine';
 import { CAPTURE, loadSettings } from '@/lib/captureConfig';
 
 let currentRequest: CaptureRequest | null = null;
@@ -276,25 +272,27 @@ async function finalizeCapture(): Promise<void> {
     return;
   }
 
-  const blob: Blob = await exportCapture();
-  browser.runtime
-    .sendMessage({
-      type: 'captureBlob',
-      data: { blob, filename: getFilename(currentRequest.format) },
-    })
-    .catch((): void => {});
+  const dataUri: string = await exportCaptureAsDataUri();
+  const filename: string = getFilename(currentRequest.format);
+
+  const a: HTMLAnchorElement = document.createElement('a');
+  a.href = dataUri;
+  a.download = filename;
+  a.click();
+
+  browser.runtime.sendMessage({ type: 'captureBlob' }).catch((): void => {});
   cleanup();
 }
 
-async function exportCapture(): Promise<Blob> {
+async function exportCaptureAsDataUri(): Promise<string> {
   const r: CaptureRequest = currentRequest as CaptureRequest;
 
   if (r.format === 'svg') {
-    return exportAsSvg(r);
+    return blobToDataUri(await exportAsSvg(r));
   }
 
   if (r.format === 'pdf') {
-    return exportAsPdf(r);
+    return blobToDataUri(await exportAsPdf(r));
   }
 
   const canvas: HTMLCanvasElement = await renderToCanvas(
@@ -303,7 +301,28 @@ async function exportCapture(): Promise<Blob> {
     totalHeight,
     r.scale,
   );
-  return canvasToBlob(canvas, r.format, r.quality);
+  const mimeType: string =
+    r.format === 'png'
+      ? 'image/png'
+      : r.format === 'jpeg'
+        ? 'image/jpeg'
+        : 'image/webp';
+  return canvas.toDataURL(mimeType, r.quality);
+}
+
+function blobToDataUri(blob: Blob): Promise<string> {
+  return new Promise<string>(
+    (resolve: (result: string) => void, reject: (err: Error) => void): void => {
+      const reader: FileReader = new FileReader();
+      reader.onload = (): void => {
+        resolve(reader.result as string);
+      };
+      reader.onerror = (): void => {
+        reject(new Error('Failed to read blob'));
+      };
+      reader.readAsDataURL(blob);
+    },
+  );
 }
 
 async function exportAsSvg(r: CaptureRequest): Promise<Blob> {

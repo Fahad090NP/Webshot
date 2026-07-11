@@ -1,4 +1,4 @@
-// Background service worker: context menus, message relay, captureVisibleTab, download
+// Background service worker: captureVisibleTab, context menus
 
 let activeTabId: number | null = null;
 
@@ -28,10 +28,6 @@ browser.runtime.onMessage.addListener(
         });
       return true as never;
     }
-
-    if (msgType === 'captureBlob') {
-      handleCaptureBlob(msg.data as { blob: Blob; filename: string });
-    }
   },
 );
 
@@ -51,20 +47,6 @@ async function handleCaptureVisible(
   } catch (err: unknown) {
     return { error: String(err) };
   }
-}
-
-function handleCaptureBlob(data: { blob: Blob; filename: string }): void {
-  const url: string = URL.createObjectURL(data.blob);
-  browser.downloads
-    .download({ url, filename: data.filename, saveAs: true })
-    .then((): void => {
-      setTimeout((): void => {
-        URL.revokeObjectURL(url);
-      }, 60_000);
-    })
-    .catch((): void => {
-      URL.revokeObjectURL(url);
-    });
 }
 
 function handleContextClick(
