@@ -1,3 +1,5 @@
+// Popup interface for Webshot extension: handles mode selection, resolution scale, export format, and orchestrates content script messaging.
+
 import { useState, useCallback, useEffect } from 'react';
 import { CAPTURE, loadSettings } from '@/lib/captureConfig';
 import type { CaptureMode, OutputFormat, WebShotSettings } from '@/lib/types';
@@ -79,6 +81,40 @@ function App(): React.ReactElement {
           return;
         }
 
+        const listener: (message: unknown) => void = (
+          message: unknown,
+        ): void => {
+          const msg: Record<string, unknown> = message as Record<
+            string,
+            unknown
+          >;
+          const msgType: string | undefined = msg.type as string | undefined;
+
+          if (msgType === 'captureProgress') {
+            const d: { complete: number } = msg.data as {
+              complete: number;
+            };
+            setProgress(d.complete);
+          } else if (msgType === 'captureBlob') {
+            completed = true;
+            setState('done');
+            browser.runtime.onMessage.removeListener(listener);
+            setTimeout((): void => {
+              window.close();
+            }, 1500);
+          } else if (msgType === 'captureCancelled') {
+            setState('ready');
+            browser.runtime.onMessage.removeListener(listener);
+          } else if (msgType === 'captureError') {
+            completed = true;
+            setError('Capture failed');
+            setState('error');
+            browser.runtime.onMessage.removeListener(listener);
+          }
+        };
+
+        browser.runtime.onMessage.addListener(listener);
+
         const request: Record<string, unknown> = {
           type: 'startCapture',
           data: { mode, format, scale, quality: CAPTURE.DEFAULT_QUALITY },
@@ -87,45 +123,16 @@ function App(): React.ReactElement {
         browser.tabs
           .sendMessage(tabList[0].id, request)
           .then((): void => {
-            const listener: (message: unknown) => void = (
-              message: unknown,
-            ): void => {
-              const msg: Record<string, unknown> = message as Record<
-                string,
-                unknown
-              >;
-              const msgType: string | undefined = msg.type as
-                string | undefined;
-
-              if (msgType === 'captureProgress') {
-                const d: { complete: number } = msg.data as {
-                  complete: number;
-                };
-                setProgress(d.complete);
-              } else if (msgType === 'captureBlob') {
-                completed = true;
-                setState('done');
-                browser.runtime.onMessage.removeListener(listener);
-                setTimeout((): void => {
-                  window.close();
-                }, 1_500);
-              } else if (msgType === 'captureCancelled') {
-                setState('ready');
-                browser.runtime.onMessage.removeListener(listener);
-              }
-            };
-
-            browser.runtime.onMessage.addListener(listener);
-
             setTimeout((): void => {
-              browser.runtime.onMessage.removeListener(listener);
               if (!completed) {
+                browser.runtime.onMessage.removeListener(listener);
                 setError('Capture timed out');
                 setState('error');
               }
-            }, 120_000);
+            }, 120000);
           })
           .catch((): void => {
+            browser.runtime.onMessage.removeListener(listener);
             setError(
               'Failed to communicate with content script. Try reloading the page.',
             );
@@ -153,7 +160,7 @@ function App(): React.ReactElement {
           onClick={handleOpenSettings}
           title="Settings"
         >
-          &#9881;
+          ⚙️
         </button>
       </div>
 
