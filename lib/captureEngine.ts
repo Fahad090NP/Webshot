@@ -170,7 +170,7 @@ export function getFilename(url: string, format: OutputFormat): string {
   const path: string = url.split('?')[0]?.split('#')[0] ?? '';
   const name: string = path
     .replace(/^https?:\/\//, '')
-    .replace(/[^A-z0-9]+/g, '-')
+    .replace(/[^A-Za-z0-9]+/g, '-')
     .replace(/-+/g, '-')
     .replace(/^_+-/, '')
     .replace(/_+-$/, '');
