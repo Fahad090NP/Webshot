@@ -107,7 +107,10 @@ function App(): React.ReactElement {
             browser.runtime.onMessage.removeListener(listener);
           } else if (msgType === 'captureError') {
             completed = true;
-            setError('Capture failed');
+            const detail: string | undefined = (
+              msg.data as { message?: string } | undefined
+            )?.message;
+            setError(detail ?? 'Capture failed');
             setState('error');
             browser.runtime.onMessage.removeListener(listener);
           }
