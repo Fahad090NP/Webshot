@@ -1,7 +1,12 @@
 // Core capture engine: compositing, canvas processing, and blob generation
 
 import { CAPTURE, FORMAT_EXTENSIONS } from './captureConfig';
-import type { OutputFormat, CaptureTile, PageDimensions } from './types';
+import type {
+  OutputFormat,
+  CaptureTile,
+  PageDimensions,
+  CapturedImage,
+} from './types';
 
 export interface CanvasTile {
   canvas: HTMLCanvasElement;
@@ -12,14 +17,18 @@ export interface CanvasTile {
   bottom: number;
 }
 
-export function computeScrollGrid(dims: PageDimensions): CaptureTile[] {
+export function computeScrollGrid(
+  dims: PageDimensions,
+  scrollPad: number,
+): CaptureTile[] {
   const { fullWidth, fullHeight, viewportWidth, viewportHeight } = dims;
-  const yDelta = viewportHeight - Math.min(viewportHeight, CAPTURE.SCROLL_PAD);
+  const yDelta = viewportHeight - Math.min(viewportHeight, scrollPad);
   const tiles: CaptureTile[] = [];
+  const maxScrollY = Math.max(0, fullHeight - viewportHeight);
 
-  let yPos: number = fullHeight - viewportHeight;
-  while (yPos > -yDelta) {
-    let xPos: number = 0;
+  let yPos = 0;
+  while (yPos <= maxScrollY) {
+    let xPos = 0;
     while (xPos < fullWidth) {
       tiles.push({
         x: xPos,
@@ -29,7 +38,10 @@ export function computeScrollGrid(dims: PageDimensions): CaptureTile[] {
       });
       xPos += viewportWidth;
     }
-    yPos -= yDelta;
+    if (yPos === maxScrollY) {
+      break;
+    }
+    yPos = Math.min(yPos + yDelta, maxScrollY);
   }
 
   return tiles;
@@ -166,7 +178,7 @@ export function getFilename(url: string, format: OutputFormat): string {
 }
 
 export async function renderToCanvas(
-  imageDataList: Array<{ x: number; y: number; dataUri: string }>,
+  imageDataList: CapturedImage[],
   totalWidth: number,
   totalHeight: number,
   scale: number,
@@ -198,7 +210,7 @@ export async function renderToCanvas(
 }
 
 export async function compositeAndExport(
-  imageDataList: Array<{ x: number; y: number; dataUri: string }>,
+  imageDataList: CapturedImage[],
   totalWidth: number,
   totalHeight: number,
   format: OutputFormat,
@@ -221,7 +233,7 @@ export async function compositeAndExport(
 }
 
 async function exportAsSvg(
-  imageDataList: Array<{ x: number; y: number; dataUri: string }>,
+  imageDataList: CapturedImage[],
   totalWidth: number,
   totalHeight: number,
   scale: number,
@@ -244,7 +256,7 @@ async function exportAsSvg(
 }
 
 async function exportAsPdf(
-  imageDataList: Array<{ x: number; y: number; dataUri: string }>,
+  imageDataList: CapturedImage[],
   totalWidth: number,
   totalHeight: number,
   scale: number,
@@ -270,7 +282,7 @@ async function exportAsPdf(
   return new Blob([pdfOutput], { type: 'application/pdf' });
 }
 
-function blobToDataUri(blob: Blob): Promise<string> {
+export function blobToDataUri(blob: Blob): Promise<string> {
   return new Promise<string>(
     (resolve: (result: string) => void, reject: (err: Error) => void): void => {
       const reader: FileReader = new FileReader();
@@ -286,7 +298,7 @@ function blobToDataUri(blob: Blob): Promise<string> {
 }
 
 function drawImageOnTiles(
-  img: { x: number; y: number; dataUri: string },
+  img: CapturedImage,
   scale: number,
   tiles: CanvasTile[],
 ): Promise<void> {
@@ -297,8 +309,8 @@ function drawImageOnTiles(
         const relevantTiles: CanvasTile[] = filterTiles(
           img.x * scale,
           img.y * scale,
-          image.width,
-          image.height,
+          img.width * scale,
+          img.height * scale,
           tiles,
         );
         for (const tile of relevantTiles) {
@@ -306,6 +318,8 @@ function drawImageOnTiles(
             image,
             img.x * scale - tile.left,
             img.y * scale - tile.top,
+            img.width * scale,
+            img.height * scale,
           );
         }
         resolve();
