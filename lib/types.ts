@@ -7,8 +7,8 @@ export type OutputFormat = 'png' | 'jpeg' | 'webp' | 'svg' | 'pdf';
 export interface CaptureRequest {
   mode: CaptureMode;
   format: OutputFormat;
-  scale: number; // 1-10
-  quality?: number; // 0-1, for lossy formats
+  scale: number;
+  quality: number;
 }
 
 export interface CaptureTile {
@@ -26,22 +26,18 @@ export interface PageDimensions {
   devicePixelRatio: number;
 }
 
-export interface ScrollPosition {
-  x: number;
-  y: number;
-}
-
 export interface CaptureProgress {
-  complete: number; // 0-1
+  complete: number;
 }
 
-export type CaptureMessage =
-  | { type: 'captureRequest'; data: CaptureRequest }
-  | { type: 'scrollPage'; data: PageDimensions }
-  | { type: 'captureTile'; data: CaptureTile & { dataUri: string } }
-  | { type: 'captureComplete' }
-  | { type: 'captureProgress'; data: CaptureProgress }
-  | {
-      type: 'selectionResult';
-      data: { x: number; y: number; width: number; height: number } | null;
-    };
+export interface WebShotSettings {
+  zoomCapture: boolean;
+  blockInteractions: boolean;
+  showZoomWarning: boolean;
+  defaultFormat: OutputFormat;
+  defaultScale: number;
+  defaultQuality: number;
+  autoDownload: boolean;
+  scrollPad: number;
+  captureDelay: number;
+}

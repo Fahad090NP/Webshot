@@ -1,33 +1,38 @@
-// Content script: measures page, scrolls grid, composites tiles, exports result
+// Content script: page measurement, scroll grid, zoom capture, selection UI, composite & export
 
-import type { CaptureRequest, PageDimensions, CaptureTile } from '@/lib/types';
+import type {
+  CaptureRequest,
+  PageDimensions,
+  CaptureTile,
+  WebShotSettings,
+} from '@/lib/types';
 import {
-  computeScrollGrid,
   renderToCanvas,
   canvasToBlob,
+  computeScrollGrid,
 } from '@/lib/captureEngine';
-import { CAPTURE } from '@/lib/captureConfig';
+import { CAPTURE, loadSettings } from '@/lib/captureConfig';
 
 let currentRequest: CaptureRequest | null = null;
+let currentSettings: WebShotSettings | null = null;
 let capturedImages: Array<{ x: number; y: number; dataUri: string }> = [];
 let scrollTiles: CaptureTile[] = [];
-let currentTileIndex = 0;
-let totalWidth = 0;
-let totalHeight = 0;
+let currentTileIndex: number = 0;
+let totalWidth: number = 0;
+let totalHeight: number = 0;
+let originalZoom: string = '1';
 
 export default defineContentScript({
   matches: ['<all_urls>'],
   runAt: 'document_idle',
-  main() {
+  main(): void {
     browser.runtime.onMessage.addListener(
-      (message: unknown, _sender: { tab?: { id?: number } }) => {
-        const msg = message as Record<string, unknown>;
-        const type = msg.type as string | undefined;
+      (message: unknown, _sender: { tab?: { id?: number } }): false => {
+        const msg: Record<string, unknown> = message as Record<string, unknown>;
+        const msgType: string | undefined = msg.type as string | undefined;
 
-        if (type === 'startCapture') {
-          void startCapture(msg.data as CaptureRequest);
-        } else if (type === 'triggerSelection') {
-          void triggerSelection();
+        if (msgType === 'startCapture') {
+          startCapture(msg.data as CaptureRequest).catch((): void => {});
         }
         return false;
       },
@@ -36,20 +41,21 @@ export default defineContentScript({
 });
 
 function getPageDimensions(): PageDimensions {
-  const body = document.body;
-  const widths = [
-    document.documentElement.clientWidth,
-    body ? body.scrollWidth : 0,
-    document.documentElement.scrollWidth,
-    body ? body.offsetWidth : 0,
-    document.documentElement.offsetWidth,
+  const docEl: HTMLElement = document.documentElement;
+  const body: HTMLElement = document.body;
+  const widths: number[] = [
+    docEl.clientWidth,
+    body.scrollWidth,
+    docEl.scrollWidth,
+    body.offsetWidth,
+    docEl.offsetWidth,
   ];
-  const heights = [
-    document.documentElement.clientHeight,
-    body ? body.scrollHeight : 0,
-    document.documentElement.scrollHeight,
-    body ? body.offsetHeight : 0,
-    document.documentElement.offsetHeight,
+  const heights: number[] = [
+    docEl.clientHeight,
+    body.scrollHeight,
+    docEl.scrollHeight,
+    body.offsetHeight,
+    docEl.offsetHeight,
   ];
   return {
     fullWidth: Math.max(...widths),
@@ -62,105 +68,173 @@ function getPageDimensions(): PageDimensions {
 
 async function startCapture(request: CaptureRequest): Promise<void> {
   currentRequest = request;
+  currentSettings = await loadSettings();
   capturedImages = [];
   currentTileIndex = 0;
+  originalZoom = document.body.style.zoom || '1';
 
   if (request.mode === 'viewport') {
     await captureViewport();
-    return;
-  }
-
-  if (request.mode === 'selection') {
+  } else if (request.mode === 'selection') {
     await captureSelection();
-    return;
+  } else {
+    await captureFullPage();
   }
+}
 
-  await captureFullPage();
+function applyZoom(scale: number): void {
+  if (scale > 1 && currentSettings?.zoomCapture === true) {
+    document.body.style.zoom = String(scale);
+  }
+}
+
+function resetZoom(): void {
+  document.body.style.zoom = originalZoom;
+}
+
+function blockInteractions(block: boolean): void {
+  if (currentSettings?.blockInteractions !== true) return;
+  const styleId: string = 'ws-interaction-block';
+  const existing: HTMLStyleElement | null = document.getElementById(
+    styleId,
+  ) as HTMLStyleElement | null;
+
+  if (block) {
+    if (existing == null) {
+      const styleEl: HTMLStyleElement = document.createElement('style');
+      styleEl.id = styleId;
+      styleEl.textContent =
+        'body{user-select:none!important;pointer-events:none!important}' +
+        '.ws-overlay,.ws-box,.ws-hint{pointer-events:auto!important}';
+      document.head.appendChild(styleEl);
+    }
+  } else {
+    if (existing != null) existing.remove();
+  }
 }
 
 async function captureViewport(): Promise<void> {
-  const dims = getPageDimensions();
-  const result = await requestCapture({
-    x: 0,
-    y: 0,
-    width: dims.viewportWidth,
-    height: dims.viewportHeight,
-  });
-  capturedImages.push({ x: 0, y: 0, dataUri: result.dataUri });
-  totalWidth = dims.viewportWidth;
-  totalHeight = dims.viewportHeight;
-  await finalizeCapture();
+  const dims: PageDimensions = getPageDimensions();
+
+  applyZoom(currentRequest?.scale ?? 1);
+  blockInteractions(true);
+
+  try {
+    const result: { dataUri: string } = await requestCapture({
+      x: 0,
+      y: 0,
+      width: dims.viewportWidth,
+      height: dims.viewportHeight,
+    });
+    capturedImages.push({ x: 0, y: 0, dataUri: result.dataUri });
+    totalWidth = dims.viewportWidth;
+    totalHeight = dims.viewportHeight;
+    await finalizeCapture();
+  } finally {
+    resetZoom();
+    blockInteractions(false);
+  }
 }
 
 async function captureFullPage(): Promise<void> {
-  const dims = getPageDimensions();
+  const dims: PageDimensions = getPageDimensions();
   totalWidth = dims.fullWidth;
   totalHeight = dims.fullHeight;
   scrollTiles = computeScrollGrid(dims);
-  await processNextTile();
+
+  applyZoom(currentRequest?.scale ?? 1);
+  blockInteractions(true);
+
+  try {
+    await processNextTile();
+  } finally {
+    resetZoom();
+    blockInteractions(false);
+  }
 }
 
 async function captureSelection(): Promise<void> {
-  const sel = await waitForSelection();
-  if (!sel) {
-    browser.runtime.sendMessage({ type: 'captureCancelled' });
+  const sel: { x: number; y: number; width: number; height: number } | null =
+    await waitForSelection();
+  if (sel == null) {
+    browser.runtime
+      .sendMessage({ type: 'captureCancelled' })
+      .catch((): void => {});
     return;
   }
 
   totalWidth = sel.width;
   totalHeight = sel.height;
 
-  if (sel.width <= window.innerWidth && sel.height <= window.innerHeight) {
-    const result = await requestCapture({
-      x: sel.x,
-      y: sel.y,
-      width: sel.width,
-      height: sel.height,
-    });
-    capturedImages.push({ x: sel.x, y: sel.y, dataUri: result.dataUri });
-    await finalizeCapture();
-    return;
-  }
+  applyZoom(currentRequest?.scale ?? 1);
+  blockInteractions(true);
 
-  const dims = getPageDimensions();
-  const clippedDims: PageDimensions = {
-    fullWidth: sel.width,
-    fullHeight: sel.height,
-    viewportWidth: dims.viewportWidth,
-    viewportHeight: dims.viewportHeight,
-    devicePixelRatio: dims.devicePixelRatio,
-  };
-  scrollTiles = computeScrollGrid(clippedDims).map((t) => ({
-    x: t.x + sel.x,
-    y: t.y + sel.y,
-    width: t.width,
-    height: t.height,
-  }));
-  await processNextTile();
+  try {
+    if (sel.width <= window.innerWidth && sel.height <= window.innerHeight) {
+      const result: { dataUri: string } = await requestCapture({
+        x: sel.x,
+        y: sel.y,
+        width: sel.width,
+        height: sel.height,
+      });
+      capturedImages.push({ x: sel.x, y: sel.y, dataUri: result.dataUri });
+      await finalizeCapture();
+      return;
+    }
+
+    const dims: PageDimensions = getPageDimensions();
+    const clippedDims: PageDimensions = {
+      fullWidth: sel.width,
+      fullHeight: sel.height,
+      viewportWidth: dims.viewportWidth,
+      viewportHeight: dims.viewportHeight,
+      devicePixelRatio: dims.devicePixelRatio,
+    };
+    scrollTiles = computeScrollGrid(clippedDims).map(
+      (t: CaptureTile): CaptureTile => ({
+        x: t.x + sel.x,
+        y: t.y + sel.y,
+        width: t.width,
+        height: t.height,
+      }),
+    );
+    await processNextTile();
+  } finally {
+    resetZoom();
+    blockInteractions(false);
+  }
 }
 
 function requestCapture(tile: CaptureTile): Promise<{ dataUri: string }> {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(
-      () => reject(new Error('Capture timeout')),
-      CAPTURE.EXECUTE_TIMEOUT,
-    );
+  return new Promise<{ dataUri: string }>(
+    (
+      resolve: (result: { dataUri: string }) => void,
+      reject: (err: Error) => void,
+    ): void => {
+      const timeoutId: ReturnType<typeof setTimeout> = setTimeout(() => {
+        reject(new Error('Capture timeout'));
+      }, CAPTURE.EXECUTE_TIMEOUT);
 
-    window.scrollTo(tile.x, tile.y);
+      window.scrollTo(tile.x, tile.y);
 
-    setTimeout(() => {
-      browser.runtime.sendMessage(
-        { type: 'requestCapture', data: { x: tile.x, y: tile.y } },
-        (response) => {
-          clearTimeout(timeout);
-          const resp = response as
-            { dataUri?: string; error?: string } | undefined;
-          if (resp?.dataUri) resolve({ dataUri: resp.dataUri });
-          else reject(new Error(resp?.error ?? 'Capture failed'));
-        },
-      );
-    }, CAPTURE.CAPTURE_DELAY);
-  });
+      setTimeout((): void => {
+        browser.runtime.sendMessage(
+          { type: 'requestCapture', data: { x: tile.x, y: tile.y } },
+          (response: unknown): void => {
+            clearTimeout(timeoutId);
+            const resp: { dataUri?: string; error?: string } | undefined =
+              response as { dataUri?: string; error?: string } | undefined;
+            if (resp?.dataUri != null) {
+              resolve({ dataUri: resp.dataUri });
+            } else {
+              const errorMsg: string = resp?.error ?? 'Capture failed';
+              reject(new Error(errorMsg));
+            }
+          },
+        );
+      }, CAPTURE.CAPTURE_DELAY);
+    },
+  );
 }
 
 async function processNextTile(): Promise<void> {
@@ -169,97 +243,103 @@ async function processNextTile(): Promise<void> {
     return;
   }
 
-  const tile = scrollTiles[currentTileIndex] as CaptureTile;
+  const tile: CaptureTile = scrollTiles[currentTileIndex];
   try {
-    const result = await requestCapture(tile);
+    const result: { dataUri: string } = await requestCapture(tile);
     capturedImages.push({ x: tile.x, y: tile.y, dataUri: result.dataUri });
 
-    browser.runtime.sendMessage({
-      type: 'captureProgress',
-      data: { complete: (currentTileIndex + 1) / scrollTiles.length },
-    });
+    browser.runtime
+      .sendMessage({
+        type: 'captureProgress',
+        data: { complete: (currentTileIndex + 1) / scrollTiles.length },
+      })
+      .catch((): void => {});
 
     currentTileIndex++;
     await processNextTile();
-  } catch (err) {
-    console.error('Capture failed:', err);
+  } catch {
     await finalizeCapture();
   }
 }
 
 async function finalizeCapture(): Promise<void> {
-  if (!currentRequest || capturedImages.length === 0) return;
+  if (currentRequest == null || capturedImages.length === 0) {
+    return;
+  }
 
-  const blob = await exportCapture();
-  browser.runtime.sendMessage({
-    type: 'captureBlob',
-    data: { blob, filename: getFilename(currentRequest.format) },
-  });
+  const blob: Blob = await exportCapture();
+  browser.runtime
+    .sendMessage({
+      type: 'captureBlob',
+      data: { blob, filename: getFilename(currentRequest.format) },
+    })
+    .catch((): void => {});
   cleanup();
 }
 
 async function exportCapture(): Promise<Blob> {
-  const r = currentRequest as CaptureRequest;
+  const r: CaptureRequest = currentRequest as CaptureRequest;
 
   if (r.format === 'svg') {
-    const pngBlob = await exportCaptureWithFormat('png');
-    const pngDataUri = await blobToDataUri(pngBlob);
-    const scaledW = Math.round(totalWidth * r.scale);
-    const scaledH = Math.round(totalHeight * r.scale);
-    const svg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${scaledW}" height="${scaledH}" viewBox="0 0 ${scaledW} ${scaledH}">
-  <image href="${pngDataUri}" width="${scaledW}" height="${scaledH}"/>
-</svg>`;
-    return new Blob([svg], { type: 'image/svg+xml' });
+    return exportAsSvg(r);
   }
 
   if (r.format === 'pdf') {
-    const { jsPDF } = await import('jspdf');
-    const scaledW = Math.round(totalWidth * r.scale);
-    const scaledH = Math.round(totalHeight * r.scale);
-    const canvas = await renderToCanvas(
-      capturedImages,
-      totalWidth,
-      totalHeight,
-      r.scale,
-    );
-    const dataUri = canvas.toDataURL('image/png');
-    const doc = new jsPDF({
-      orientation: scaledW > scaledH ? 'landscape' : 'portrait',
-      unit: 'px',
-      format: [scaledW, scaledH],
-    });
-    doc.addImage(dataUri, 'PNG', 0, 0, scaledW, scaledH);
-    return new Blob([doc.output('arraybuffer')], { type: 'application/pdf' });
+    return exportAsPdf(r);
   }
 
-  return exportCaptureWithFormat(r.format);
-}
-
-async function exportCaptureWithFormat(format: string): Promise<Blob> {
-  const canvas = await renderToCanvas(
+  const canvas: HTMLCanvasElement = await renderToCanvas(
     capturedImages,
     totalWidth,
     totalHeight,
-    (currentRequest as CaptureRequest).scale,
+    r.scale,
   );
-  const quality = (currentRequest as CaptureRequest).quality;
-  return canvasToBlob(canvas, format as CaptureRequest['format'], quality);
+  return canvasToBlob(canvas, r.format, r.quality);
 }
 
-function blobToDataUri(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error('Failed to read blob'));
-    reader.readAsDataURL(blob);
+async function exportAsSvg(r: CaptureRequest): Promise<Blob> {
+  const canvas: HTMLCanvasElement = await renderToCanvas(
+    capturedImages,
+    totalWidth,
+    totalHeight,
+    r.scale,
+  );
+  const pngDataUri: string = canvas.toDataURL('image/png');
+  const scaledW: number = Math.round(totalWidth * r.scale);
+  const scaledH: number = Math.round(totalHeight * r.scale);
+  const svg: string =
+    '<?xml version="1.0" encoding="UTF-8"?>' +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${scaledW}" height="${scaledH}" viewBox="0 0 ${scaledW} ${scaledH}">` +
+    `<image href="${pngDataUri}" width="${scaledW}" height="${scaledH}"/>` +
+    '</svg>';
+  return new Blob([svg], { type: 'image/svg+xml' });
+}
+
+async function exportAsPdf(r: CaptureRequest): Promise<Blob> {
+  const { jsPDF: JsPdfClass } = await import('jspdf');
+  const scaledW: number = Math.round(totalWidth * r.scale);
+  const scaledH: number = Math.round(totalHeight * r.scale);
+  const canvas: HTMLCanvasElement = await renderToCanvas(
+    capturedImages,
+    totalWidth,
+    totalHeight,
+    r.scale,
+  );
+  const dataUri: string = canvas.toDataURL('image/png');
+  const doc: InstanceType<typeof JsPdfClass> = new JsPdfClass({
+    orientation: scaledW > scaledH ? 'landscape' : 'portrait',
+    unit: 'px',
+    format: [scaledW, scaledH],
   });
+  doc.addImage(dataUri, 'PNG', 0, 0, scaledW, scaledH);
+  const pdfOutput: ArrayBuffer = doc.output('arraybuffer');
+  return new Blob([pdfOutput], { type: 'application/pdf' });
 }
 
 function getFilename(format: string): string {
-  const url = window.location.href;
-  const path = url.split('?')[0]?.split('#')[0] ?? '';
-  const name = path
+  const url: string = window.location.href;
+  const path: string = url.split('?')[0]?.split('#')[0] ?? '';
+  const name: string = path
     .replace(/^https?:\/\//, '')
     .replace(/[^A-z0-9]+/g, '-')
     .replace(/-+/g, '-')
@@ -268,159 +348,175 @@ function getFilename(format: string): string {
   return `webshot-${name || 'page'}-${Date.now()}.${format}`;
 }
 
-function triggerSelection(): void {
-  void waitForSelection();
-}
-
 function waitForSelection(): Promise<{
   x: number;
   y: number;
   width: number;
   height: number;
 } | null> {
-  return new Promise((resolve) => {
-    let overlay: HTMLDivElement | null = null;
-    let selectionBox: HTMLDivElement | null = null;
-    let startX = 0;
-    let startY = 0;
-    let isSelecting = false;
-    let mode: 'click' | 'drag' | null = null;
+  return new Promise<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(
+    (
+      resolve: (
+        result: { x: number; y: number; width: number; height: number } | null,
+      ) => void,
+    ): void => {
+      const style: HTMLStyleElement = document.createElement('style');
+      style.textContent =
+        '.ws-overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:2147483647;cursor:crosshair}' +
+        '.ws-box{position:fixed;border:2px solid #1a73e8;background:rgba(26,115,232,0.08);z-index:2147483647;pointer-events:none;display:none}' +
+        '.ws-hint{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1a1a1a;color:#fff;padding:8px 16px;border-radius:8px;font:13px sans-serif;z-index:2147483647;white-space:nowrap}';
+      document.head.appendChild(style);
 
-    const style = document.createElement('style');
-    style.textContent = `
-      .ws-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2147483647; cursor: crosshair; }
-      .ws-box { position: fixed; border: 2px solid #1a73e8; background: rgba(26,115,232,0.08); z-index: 2147483647; pointer-events: none; display: none; }
-      .ws-hint { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: #1a1a1a; color: #fff; padding: 8px 16px; border-radius: 8px; font: 13px sans-serif; z-index: 2147483647; white-space: nowrap; }
-    `;
-    document.head.appendChild(style);
+      const hint: HTMLDivElement = document.createElement('div');
+      hint.className = 'ws-hint';
+      hint.textContent =
+        'Click an element or drag to select area. Press Esc to cancel.';
+      document.body.appendChild(hint);
 
-    const hint = document.createElement('div');
-    hint.className = 'ws-hint';
-    hint.textContent =
-      'Click an element or drag to select area. Press Esc to cancel.';
-    document.body.appendChild(hint);
+      const overlay: HTMLDivElement = document.createElement('div');
+      overlay.className = 'ws-overlay';
+      document.body.appendChild(overlay);
 
-    overlay = document.createElement('div');
-    overlay.className = 'ws-overlay';
-    document.body.appendChild(overlay);
+      const selectionBox: HTMLDivElement = document.createElement('div');
+      selectionBox.className = 'ws-box';
+      document.body.appendChild(selectionBox);
 
-    selectionBox = document.createElement('div');
-    selectionBox.className = 'ws-box';
-    document.body.appendChild(selectionBox);
+      let startX: number = 0;
+      let startY: number = 0;
+      let isSelecting: boolean = false;
+      let mode: 'click' | 'drag' | null = null;
 
-    function getElementAtPoint(x: number, y: number): Element | null {
-      overlay?.style.setProperty('pointer-events', 'none');
-      const el = document.elementFromPoint(x, y);
-      overlay?.style.setProperty('pointer-events', '');
-      return el;
-    }
-
-    function getElementBounds(
-      el: Element,
-    ): { x: number; y: number; width: number; height: number } | null {
-      const rect = el.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) return null;
-      return {
-        x: rect.left + window.scrollX,
-        y: rect.top + window.scrollY,
-        width: rect.width,
-        height: rect.height,
-      };
-    }
-
-    function onMouseDown(e: MouseEvent) {
-      if (e.button !== 0) return;
-      isSelecting = true;
-      mode = 'drag';
-      startX = e.clientX + window.scrollX;
-      startY = e.clientY + window.scrollY;
-      (selectionBox as HTMLDivElement).style.display = 'block';
-      (selectionBox as HTMLDivElement).style.left = `${e.clientX}px`;
-      (selectionBox as HTMLDivElement).style.top = `${e.clientY}px`;
-      (selectionBox as HTMLDivElement).style.width = '0px';
-      (selectionBox as HTMLDivElement).style.height = '0px';
-    }
-
-    function onMouseMove(e: MouseEvent) {
-      if (!isSelecting || mode !== 'drag') {
-        (selectionBox as HTMLDivElement).style.display = 'none';
-        return;
+      function getElementAtPoint(x: number, y: number): Element | null {
+        overlay.style.setProperty('pointer-events', 'none');
+        const el: Element | null = document.elementFromPoint(x, y);
+        overlay.style.setProperty('pointer-events', '');
+        return el;
       }
-      const x = Math.min(e.clientX, startX - window.scrollX);
-      const y = Math.min(e.clientY, startY - window.scrollY);
-      const w = Math.abs(e.clientX - (startX - window.scrollX));
-      const h = Math.abs(e.clientY - (startY - window.scrollY));
-      (selectionBox as HTMLDivElement).style.left = `${x}px`;
-      (selectionBox as HTMLDivElement).style.top = `${y}px`;
-      (selectionBox as HTMLDivElement).style.width = `${w}px`;
-      (selectionBox as HTMLDivElement).style.height = `${h}px`;
-    }
 
-    function onMouseUp(e: MouseEvent) {
-      if (!isSelecting) return;
-      isSelecting = false;
+      function getElementBounds(
+        el: Element,
+      ): { x: number; y: number; width: number; height: number } | null {
+        const rect: DOMRect = el.getBoundingClientRect();
+        if (rect.width === 0 || rect.height === 0) return null;
+        return {
+          x: rect.left + window.scrollX,
+          y: rect.top + window.scrollY,
+          width: rect.width,
+          height: rect.height,
+        };
+      }
 
-      if (mode === 'drag') {
-        const dx = Math.abs(e.clientX + window.scrollX - startX);
-        const dy = Math.abs(e.clientY + window.scrollY - startY);
+      function onMouseDown(e: MouseEvent): void {
+        if (e.button !== 0) return;
+        isSelecting = true;
+        mode = 'drag';
+        startX = e.clientX + window.scrollX;
+        startY = e.clientY + window.scrollY;
+        selectionBox.style.display = 'block';
+        selectionBox.style.left = `${e.clientX}px`;
+        selectionBox.style.top = `${e.clientY}px`;
+        selectionBox.style.width = '0px';
+        selectionBox.style.height = '0px';
+      }
 
-        if (dx < 5 && dy < 5) {
-          mode = 'click';
-          const el = getElementAtPoint(e.clientX, e.clientY);
-          if (el && el !== document.body && el !== document.documentElement) {
-            const bounds = getElementBounds(el);
-            if (bounds) {
-              cleanup();
-              resolve(bounds);
-              return;
+      function onMouseMove(e: MouseEvent): void {
+        if (!isSelecting || mode !== 'drag') {
+          selectionBox.style.display = 'none';
+          return;
+        }
+        const x: number = Math.min(e.clientX, startX - window.scrollX);
+        const y: number = Math.min(e.clientY, startY - window.scrollY);
+        const w: number = Math.abs(e.clientX - (startX - window.scrollX));
+        const h: number = Math.abs(e.clientY - (startY - window.scrollY));
+        selectionBox.style.left = `${x}px`;
+        selectionBox.style.top = `${y}px`;
+        selectionBox.style.width = `${w}px`;
+        selectionBox.style.height = `${h}px`;
+      }
+
+      function onMouseUp(e: MouseEvent): void {
+        if (!isSelecting) return;
+        isSelecting = false;
+
+        if (mode === 'drag') {
+          const dx: number = Math.abs(e.clientX + window.scrollX - startX);
+          const dy: number = Math.abs(e.clientY + window.scrollY - startY);
+
+          if (dx < 5 && dy < 5) {
+            mode = 'click';
+            const el: Element | null = getElementAtPoint(e.clientX, e.clientY);
+            if (
+              el != null &&
+              el !== document.body &&
+              el !== document.documentElement
+            ) {
+              const bounds: {
+                x: number;
+                y: number;
+                width: number;
+                height: number;
+              } | null = getElementBounds(el);
+              if (bounds != null) {
+                cleanupListeners();
+                resolve(bounds);
+                return;
+              }
             }
+          }
+
+          const x: number = Math.min(startX, e.clientX + window.scrollX);
+          const y: number = Math.min(startY, e.clientY + window.scrollY);
+          const w: number = Math.abs(e.clientX + window.scrollX - startX);
+          const h: number = Math.abs(e.clientY + window.scrollY - startY);
+
+          if (w > 5 && h > 5) {
+            cleanupListeners();
+            resolve({ x, y, width: w, height: h });
+            return;
           }
         }
 
-        const x = Math.min(startX, e.clientX + window.scrollX);
-        const y = Math.min(startY, e.clientY + window.scrollY);
-        const w = Math.abs(e.clientX + window.scrollX - startX);
-        const h = Math.abs(e.clientY + window.scrollY - startY);
+        cleanupListeners();
+        resolve(null);
+      }
 
-        if (w > 5 && h > 5) {
-          cleanup();
-          resolve({ x, y, width: w, height: h });
-          return;
+      function onKeyDown(e: KeyboardEvent): void {
+        if (e.key === 'Escape') {
+          cleanupListeners();
+          resolve(null);
         }
       }
 
-      cleanup();
-      resolve(null);
-    }
-
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        cleanup();
-        resolve(null);
+      function cleanupListeners(): void {
+        overlay.remove();
+        selectionBox.remove();
+        hint.remove();
+        style.remove();
+        document.removeEventListener('mousedown', onMouseDown);
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        document.removeEventListener('keydown', onKeyDown);
       }
-    }
 
-    function cleanup() {
-      overlay?.remove();
-      selectionBox?.remove();
-      hint?.remove();
-      style.remove();
-      document.removeEventListener('mousedown', onMouseDown);
-      document.removeEventListener('mousemove', onMouseMove);
-      document.removeEventListener('mouseup', onMouseUp);
-      document.removeEventListener('keydown', onKeyDown);
-    }
-
-    document.addEventListener('mousedown', onMouseDown);
-    document.addEventListener('mousemove', onMouseMove);
-    document.addEventListener('mouseup', onMouseUp);
-    document.addEventListener('keydown', onKeyDown);
-  });
+      document.addEventListener('mousedown', onMouseDown);
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+      document.addEventListener('keydown', onKeyDown);
+    },
+  );
 }
 
 function cleanup(): void {
   currentRequest = null;
+  currentSettings = null;
   capturedImages = [];
   scrollTiles = [];
   currentTileIndex = 0;
+  resetZoom();
+  blockInteractions(false);
 }

@@ -17,9 +17,9 @@ export function computeScrollGrid(dims: PageDimensions): CaptureTile[] {
   const yDelta = viewportHeight - Math.min(viewportHeight, CAPTURE.SCROLL_PAD);
   const tiles: CaptureTile[] = [];
 
-  let yPos = fullHeight - viewportHeight;
+  let yPos: number = fullHeight - viewportHeight;
   while (yPos > -yDelta) {
-    let xPos = 0;
+    let xPos: number = 0;
     while (xPos < fullWidth) {
       tiles.push({
         x: xPos,
@@ -39,38 +39,41 @@ export function initCompositeCanvases(
   totalWidth: number,
   totalHeight: number,
 ): CanvasTile[] {
-  const badSize =
+  const badSize: boolean =
     totalHeight > CAPTURE.MAX_PRIMARY_DIMENSION ||
     totalWidth > CAPTURE.MAX_PRIMARY_DIMENSION ||
     totalHeight * totalWidth > CAPTURE.MAX_AREA;
-  const biggerWidth = totalWidth > totalHeight;
-  const maxWidth = !badSize
+  const biggerWidth: boolean = totalWidth > totalHeight;
+  const maxWidth: number = !badSize
     ? totalWidth
     : biggerWidth
       ? CAPTURE.MAX_PRIMARY_DIMENSION
       : CAPTURE.MAX_SECONDARY_DIMENSION;
-  const maxHeight = !badSize
+  const maxHeight: number = !badSize
     ? totalHeight
     : biggerWidth
       ? CAPTURE.MAX_SECONDARY_DIMENSION
       : CAPTURE.MAX_PRIMARY_DIMENSION;
-  const numCols = Math.ceil(totalWidth / maxWidth);
-  const numRows = Math.ceil(totalHeight / maxHeight);
+  const numCols: number = Math.ceil(totalWidth / maxWidth);
+  const numRows: number = Math.ceil(totalHeight / maxHeight);
   const result: CanvasTile[] = [];
 
-  for (let row = 0; row < numRows; row++) {
-    for (let col = 0; col < numCols; col++) {
-      const canvas = document.createElement('canvas');
+  for (let row: number = 0; row < numRows; row++) {
+    for (let col: number = 0; col < numCols; col++) {
+      const canvas: HTMLCanvasElement = document.createElement('canvas');
       canvas.width =
         col === numCols - 1 ? totalWidth % maxWidth || maxWidth : maxWidth;
       canvas.height =
         row === numRows - 1 ? totalHeight % maxHeight || maxHeight : maxHeight;
-      const left = col * maxWidth;
-      const top = row * maxHeight;
+      const left: number = col * maxWidth;
+      const top: number = row * maxHeight;
+
+      const ctx: CanvasRenderingContext2D | null = canvas.getContext('2d');
+      if (ctx == null) continue;
 
       result.push({
         canvas,
-        ctx: canvas.getContext('2d') as CanvasRenderingContext2D,
+        ctx,
         left,
         top,
         right: left + canvas.width,
@@ -89,10 +92,10 @@ export function filterTiles(
   imgHeight: number,
   tiles: CanvasTile[],
 ): CanvasTile[] {
-  const imgRight = imgLeft + imgWidth;
-  const imgBottom = imgTop + imgHeight;
+  const imgRight: number = imgLeft + imgWidth;
+  const imgBottom: number = imgTop + imgHeight;
   return tiles.filter(
-    (t) =>
+    (t: CanvasTile): boolean =>
       imgLeft < t.right &&
       imgRight > t.left &&
       imgTop < t.bottom &&
@@ -105,7 +108,7 @@ export function canvasToBlob(
   format: OutputFormat,
   quality?: number,
 ): Promise<Blob> {
-  const mimeType =
+  const mimeType: string | null =
     format === 'png'
       ? 'image/png'
       : format === 'jpeg'
@@ -114,40 +117,46 @@ export function canvasToBlob(
           ? 'image/webp'
           : null;
 
-  if (!mimeType)
+  if (mimeType == null) {
     return Promise.reject(
       new Error(`Format ${format} unsupported by canvas export`),
     );
+  }
 
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (blob) resolve(blob);
-        else reject(new Error(`Failed to create ${format} blob`));
-      },
-      mimeType,
-      quality,
-    );
-  });
+  return new Promise<Blob>(
+    (resolve: (blob: Blob) => void, reject: (err: Error) => void): void => {
+      canvas.toBlob(
+        (blob: Blob | null): void => {
+          if (blob != null) {
+            resolve(blob);
+          } else {
+            reject(new Error(`Failed to create ${format} blob`));
+          }
+        },
+        mimeType,
+        quality,
+      );
+    },
+  );
 }
 
 export function dataUriToBlob(dataUri: string): Blob {
-  const parts = dataUri.split(',');
-  const mimeMatch = parts[0]?.match(/:(.*?);/);
-  const mimeString = mimeMatch?.[1] ?? 'image/png';
-  const byteString = atob(parts[1] ?? '');
-  const ab = new ArrayBuffer(byteString.length);
-  const ia = new Uint8Array(ab);
-  for (let i = 0; i < byteString.length; i++) {
+  const parts: string[] = dataUri.split(',');
+  const mimeMatch: RegExpMatchArray | null = (parts[0] ?? '').match(/:(.*?);/);
+  const mimeString: string = mimeMatch?.[1] ?? 'image/png';
+  const byteString: string = atob(parts[1] ?? '');
+  const ab: ArrayBuffer = new ArrayBuffer(byteString.length);
+  const ia: Uint8Array = new Uint8Array(ab);
+  for (let i: number = 0; i < byteString.length; i++) {
     ia[i] = byteString.charCodeAt(i);
   }
   return new Blob([ab], { type: mimeString });
 }
 
 export function getFilename(url: string, format: OutputFormat): string {
-  const ext = FORMAT_EXTENSIONS[format] ?? 'png';
-  const path = url.split('?')[0]?.split('#')[0] ?? '';
-  const name = path
+  const ext: string = FORMAT_EXTENSIONS[format] ?? 'png';
+  const path: string = url.split('?')[0]?.split('#')[0] ?? '';
+  const name: string = path
     .replace(/^https?:\/\//, '')
     .replace(/[^A-z0-9]+/g, '-')
     .replace(/-+/g, '-')
@@ -162,20 +171,26 @@ export async function renderToCanvas(
   totalHeight: number,
   scale: number,
 ): Promise<HTMLCanvasElement> {
-  const scaledW = Math.round(totalWidth * scale);
-  const scaledH = Math.round(totalHeight * scale);
-  const tiles = initCompositeCanvases(scaledW, scaledH);
+  const scaledW: number = Math.round(totalWidth * scale);
+  const scaledH: number = Math.round(totalHeight * scale);
+  const tiles: CanvasTile[] = initCompositeCanvases(scaledW, scaledH);
 
   for (const img of imageDataList) {
     await drawImageOnTiles(img, scale, tiles);
   }
 
-  if (tiles.length === 1) return tiles[0]?.canvas as HTMLCanvasElement;
+  if (tiles.length === 1) {
+    return tiles[0].canvas;
+  }
 
-  const finalCanvas = document.createElement('canvas');
+  const finalCanvas: HTMLCanvasElement = document.createElement('canvas');
   finalCanvas.width = scaledW;
   finalCanvas.height = scaledH;
-  const finalCtx = finalCanvas.getContext('2d') as CanvasRenderingContext2D;
+  const finalCtx: CanvasRenderingContext2D | null =
+    finalCanvas.getContext('2d');
+  if (finalCtx == null) {
+    throw new Error('Failed to get canvas context');
+  }
   for (const tile of tiles) {
     finalCtx.drawImage(tile.canvas, tile.left, tile.top);
   }
@@ -196,7 +211,7 @@ export async function compositeAndExport(
   if (format === 'pdf') {
     return exportAsPdf(imageDataList, totalWidth, totalHeight, scale);
   }
-  const canvas = await renderToCanvas(
+  const canvas: HTMLCanvasElement = await renderToCanvas(
     imageDataList,
     totalWidth,
     totalHeight,
@@ -211,17 +226,17 @@ async function exportAsSvg(
   totalHeight: number,
   scale: number,
 ): Promise<Blob> {
-  const scaledW = Math.round(totalWidth * scale);
-  const scaledH = Math.round(totalHeight * scale);
-  const pngBlob = await compositeAndExport(
+  const scaledW: number = Math.round(totalWidth * scale);
+  const scaledH: number = Math.round(totalHeight * scale);
+  const pngBlob: Blob = await compositeAndExport(
     imageDataList,
     totalWidth,
     totalHeight,
     'png',
     scale,
   );
-  const pngDataUri = await blobToDataUri(pngBlob);
-  const svgContent = `<?xml version="1.0" encoding="UTF-8"?>
+  const pngDataUri: string = await blobToDataUri(pngBlob);
+  const svgContent: string = `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${scaledW}" height="${scaledH}" viewBox="0 0 ${scaledW} ${scaledH}">
   <image href="${pngDataUri}" width="${scaledW}" height="${scaledH}"/>
 </svg>`;
@@ -234,33 +249,40 @@ async function exportAsPdf(
   totalHeight: number,
   scale: number,
 ): Promise<Blob> {
-  const scaledW = Math.round(totalWidth * scale);
-  const scaledH = Math.round(totalHeight * scale);
+  const scaledW: number = Math.round(totalWidth * scale);
+  const scaledH: number = Math.round(totalHeight * scale);
 
-  const { jsPDF } = await import('jspdf');
-  const doc = new jsPDF({
+  const { jsPDF: JsPdfClass } = await import('jspdf');
+  const doc: InstanceType<typeof JsPdfClass> = new JsPdfClass({
     orientation: scaledW > scaledH ? 'landscape' : 'portrait',
     unit: 'px',
-    format: [scaledW, scaledH],
+    format: [scaledW, scaledH] as [number, number],
   });
-  const canvas = await renderToCanvas(
+  const canvas: HTMLCanvasElement = await renderToCanvas(
     imageDataList,
     totalWidth,
     totalHeight,
     scale,
   );
-  const dataUri = canvas.toDataURL('image/png');
+  const dataUri: string = canvas.toDataURL('image/png');
   doc.addImage(dataUri, 'PNG', 0, 0, scaledW, scaledH);
-  return new Blob([doc.output('arraybuffer')], { type: 'application/pdf' });
+  const pdfOutput: ArrayBuffer = doc.output('arraybuffer');
+  return new Blob([pdfOutput], { type: 'application/pdf' });
 }
 
 function blobToDataUri(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error('Failed to read blob'));
-    reader.readAsDataURL(blob);
-  });
+  return new Promise<string>(
+    (resolve: (result: string) => void, reject: (err: Error) => void): void => {
+      const reader: FileReader = new FileReader();
+      reader.onload = (): void => {
+        resolve(reader.result as string);
+      };
+      reader.onerror = (): void => {
+        reject(new Error('Failed to read blob'));
+      };
+      reader.readAsDataURL(blob);
+    },
+  );
 }
 
 function drawImageOnTiles(
@@ -268,26 +290,30 @@ function drawImageOnTiles(
   scale: number,
   tiles: CanvasTile[],
 ): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => {
-      const relevantTiles = filterTiles(
-        img.x * scale,
-        img.y * scale,
-        image.width,
-        image.height,
-        tiles,
-      );
-      for (const tile of relevantTiles) {
-        tile.ctx.drawImage(
-          image,
-          img.x * scale - tile.left,
-          img.y * scale - tile.top,
+  return new Promise<void>(
+    (resolve: () => void, reject: (err: Error) => void): void => {
+      const image: HTMLImageElement = new Image();
+      image.onload = (): void => {
+        const relevantTiles: CanvasTile[] = filterTiles(
+          img.x * scale,
+          img.y * scale,
+          image.width,
+          image.height,
+          tiles,
         );
-      }
-      resolve();
-    };
-    image.onerror = () => reject(new Error('Failed to load image'));
-    image.src = img.dataUri;
-  });
+        for (const tile of relevantTiles) {
+          tile.ctx.drawImage(
+            image,
+            img.x * scale - tile.left,
+            img.y * scale - tile.top,
+          );
+        }
+        resolve();
+      };
+      image.onerror = (): void => {
+        reject(new Error('Failed to load image'));
+      };
+      image.src = img.dataUri;
+    },
+  );
 }
