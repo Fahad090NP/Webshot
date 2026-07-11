@@ -18,19 +18,14 @@ export default tseslint.config(
   },
   {
     files: ['**/*.{ts,tsx}'],
-    ...reactPlugin.configs.flat.recommended,
-    ...reactPlugin.configs.flat['jsx-runtime'],
+    plugins: {
+      react: reactPlugin,
+      'react-hooks': reactHooks,
+    },
     rules: {
+      ...reactPlugin.configs.recommended.rules,
+      ...reactPlugin.configs['jsx-runtime'].rules,
       ...reactHooks.configs.recommended.rules,
-    },
-    settings: {
-      react: {
-        version: 'detect',
-      },
-    },
-  },
-  {
-    rules: {
       'no-console': ['warn', { allow: ['warn', 'error'] }],
       '@typescript-eslint/no-unused-vars': [
         'error',
@@ -42,6 +37,11 @@ export default tseslint.config(
         'error',
         { allowNumber: true, allowBoolean: true },
       ],
+    },
+    settings: {
+      react: {
+        version: 'detect',
+      },
     },
   },
   {
