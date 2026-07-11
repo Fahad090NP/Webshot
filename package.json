@@ -21,11 +21,13 @@
     "postinstall": "wxt prepare"
   },
   "dependencies": {
+    "jspdf": "^4.2.1",
     "react": "^19.2.7",
     "react-dom": "^19.2.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@types/jspdf": "^2.0.0",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@wxt-dev/module-react": "^1.2.2",

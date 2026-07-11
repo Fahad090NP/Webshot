@@ -114,11 +114,10 @@ export function canvasToBlob(
           ? 'image/webp'
           : null;
 
-  if (!mimeType) {
+  if (!mimeType)
     return Promise.reject(
-      new Error(`Format ${format} not supported for canvas export`),
+      new Error(`Format ${format} unsupported by canvas export`),
     );
-  }
 
   return new Promise((resolve, reject) => {
     canvas.toBlob(
@@ -157,14 +156,12 @@ export function getFilename(url: string, format: OutputFormat): string {
   return `webshot-${name || 'page'}-${Date.now()}.${ext}`;
 }
 
-export async function compositeAndExport(
+export async function renderToCanvas(
   imageDataList: Array<{ x: number; y: number; dataUri: string }>,
   totalWidth: number,
   totalHeight: number,
-  format: OutputFormat,
   scale: number,
-  quality?: number,
-): Promise<Blob> {
+): Promise<HTMLCanvasElement> {
   const scaledW = Math.round(totalWidth * scale);
   const scaledH = Math.round(totalHeight * scale);
   const tiles = initCompositeCanvases(scaledW, scaledH);
@@ -173,9 +170,7 @@ export async function compositeAndExport(
     await drawImageOnTiles(img, scale, tiles);
   }
 
-  if (tiles.length === 1) {
-    return canvasToBlob(tiles[0]?.canvas as HTMLCanvasElement, format, quality);
-  }
+  if (tiles.length === 1) return tiles[0]?.canvas as HTMLCanvasElement;
 
   const finalCanvas = document.createElement('canvas');
   finalCanvas.width = scaledW;
@@ -184,7 +179,88 @@ export async function compositeAndExport(
   for (const tile of tiles) {
     finalCtx.drawImage(tile.canvas, tile.left, tile.top);
   }
-  return canvasToBlob(finalCanvas, format, quality);
+  return finalCanvas;
+}
+
+export async function compositeAndExport(
+  imageDataList: Array<{ x: number; y: number; dataUri: string }>,
+  totalWidth: number,
+  totalHeight: number,
+  format: OutputFormat,
+  scale: number,
+  quality?: number,
+): Promise<Blob> {
+  if (format === 'svg') {
+    return exportAsSvg(imageDataList, totalWidth, totalHeight, scale);
+  }
+  if (format === 'pdf') {
+    return exportAsPdf(imageDataList, totalWidth, totalHeight, scale);
+  }
+  const canvas = await renderToCanvas(
+    imageDataList,
+    totalWidth,
+    totalHeight,
+    scale,
+  );
+  return canvasToBlob(canvas, format, quality);
+}
+
+async function exportAsSvg(
+  imageDataList: Array<{ x: number; y: number; dataUri: string }>,
+  totalWidth: number,
+  totalHeight: number,
+  scale: number,
+): Promise<Blob> {
+  const scaledW = Math.round(totalWidth * scale);
+  const scaledH = Math.round(totalHeight * scale);
+  const pngBlob = await compositeAndExport(
+    imageDataList,
+    totalWidth,
+    totalHeight,
+    'png',
+    scale,
+  );
+  const pngDataUri = await blobToDataUri(pngBlob);
+  const svgContent = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${scaledW}" height="${scaledH}" viewBox="0 0 ${scaledW} ${scaledH}">
+  <image href="${pngDataUri}" width="${scaledW}" height="${scaledH}"/>
+</svg>`;
+  return new Blob([svgContent], { type: 'image/svg+xml' });
+}
+
+async function exportAsPdf(
+  imageDataList: Array<{ x: number; y: number; dataUri: string }>,
+  totalWidth: number,
+  totalHeight: number,
+  scale: number,
+): Promise<Blob> {
+  const scaledW = Math.round(totalWidth * scale);
+  const scaledH = Math.round(totalHeight * scale);
+
+  const { jsPDF } = await import('jspdf');
+  const doc = new jsPDF({
+    orientation: scaledW > scaledH ? 'landscape' : 'portrait',
+    unit: 'px',
+    format: [scaledW, scaledH],
+  });
+  const canvas = await renderToCanvas(
+    imageDataList,
+    totalWidth,
+    totalHeight,
+    scale,
+  );
+  const dataUri = canvas.toDataURL('image/png');
+  doc.addImage(dataUri, 'PNG', 0, 0, scaledW, scaledH);
+  return new Blob([doc.output('arraybuffer')], { type: 'application/pdf' });
+}
+
+function blobToDataUri(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error('Failed to read blob'));
+    reader.readAsDataURL(blob);
+  });
 }
 
 function drawImageOnTiles(

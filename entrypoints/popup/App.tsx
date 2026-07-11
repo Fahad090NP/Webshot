@@ -121,7 +121,7 @@ function App() {
         onChange={(e) => setFormat(e.target.value as OutputFormat)}
         disabled={state === 'capturing'}
       >
-        {(['png', 'jpeg', 'webp'] as OutputFormat[]).map((f) => (
+        {(['png', 'jpeg', 'webp', 'svg', 'pdf'] as OutputFormat[]).map((f) => (
           <option key={f} value={f}>
             {f.toUpperCase()}
           </option>
