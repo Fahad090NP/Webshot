@@ -16,7 +16,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint:md": "markdownlint '**/*.md' --ignore node_modules --ignore inspirations --ignore AGENTS.md",
+    "lint:md": "markdownlint '**/*.md' --ignore node_modules --ignore inspirations",
     "typecheck": "tsc --noEmit",
     "prepare": "husky",
     "postinstall": "wxt prepare"
