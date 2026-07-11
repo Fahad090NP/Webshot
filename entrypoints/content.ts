@@ -102,9 +102,11 @@ async function startCapture(request: CaptureRequest): Promise<void> {
   }
 }
 
-function applyZoom(scale: number): void {
+async function applyZoom(scale: number): Promise<void> {
   if (scale > 1 && currentSettings?.zoomCapture === true) {
     document.body.style.zoom = String(scale);
+    // Allow layout reflow to settle
+    await new Promise((resolve) => setTimeout(resolve, 150));
   }
 }
 
@@ -141,11 +143,12 @@ function hideScrollbars(): void {
 }
 
 async function captureViewport(): Promise<void> {
+  await applyZoom(currentRequest?.scale ?? 1);
+
   const dims: PageDimensions = getPageDimensions();
   captureOffset = { x: window.scrollX, y: window.scrollY };
 
   hideScrollbars();
-  applyZoom(currentRequest?.scale ?? 1);
   blockInteractions(true);
 
   try {
@@ -172,6 +175,8 @@ async function captureViewport(): Promise<void> {
 }
 
 async function captureFullPage(): Promise<void> {
+  await applyZoom(currentRequest?.scale ?? 1);
+
   const dims: PageDimensions = getPageDimensions();
   totalWidth = dims.fullWidth;
   totalHeight = dims.fullHeight;
@@ -182,7 +187,6 @@ async function captureFullPage(): Promise<void> {
   captureOffset = { x: 0, y: 0 };
 
   hideScrollbars();
-  applyZoom(currentRequest?.scale ?? 1);
   blockInteractions(true);
 
   try {
@@ -203,16 +207,30 @@ async function captureSelection(): Promise<void> {
     return;
   }
 
+  const scale = currentRequest?.scale ?? 1;
+  const isZoom = currentSettings?.zoomCapture === true && scale > 1;
+
+  if (isZoom) {
+    sel.x *= scale;
+    sel.y *= scale;
+    sel.width *= scale;
+    sel.height *= scale;
+  }
+
+  await applyZoom(scale);
+
   totalWidth = sel.width;
   totalHeight = sel.height;
   captureOffset = { x: sel.x, y: sel.y };
 
   hideScrollbars();
-  applyZoom(currentRequest?.scale ?? 1);
   blockInteractions(true);
 
   try {
-    if (sel.width <= window.innerWidth && sel.height <= window.innerHeight) {
+    const viewportW = window.innerWidth;
+    const viewportH = window.innerHeight;
+
+    if (sel.width <= viewportW && sel.height <= viewportH) {
       const result = await requestCapture({
         x: sel.x,
         y: sel.y,
@@ -352,12 +370,16 @@ async function finalizeCapture(): Promise<void> {
 
 async function exportCaptureAsDataUri(): Promise<string> {
   const r: CaptureRequest = currentRequest as CaptureRequest;
+  const scale = r.scale;
+  const isZoom = currentSettings?.zoomCapture === true && scale > 1;
+  const activeScale = isZoom ? 1 : scale;
+
   const blob: Blob = await compositeAndExport(
     capturedImages,
     totalWidth,
     totalHeight,
     r.format,
-    r.scale,
+    activeScale,
     r.quality,
   );
   return blobToDataUri(blob);
@@ -548,6 +570,8 @@ function cleanup(): void {
   scrollTiles = [];
   currentTileIndex = 0;
 
+  resetZoom();
+
   if (originalOverflow !== '') {
     document.documentElement.style.overflow = originalOverflow;
   }
@@ -556,6 +580,5 @@ function cleanup(): void {
   }
   window.scrollTo(originalX, originalY);
 
-  resetZoom();
   blockInteractions(false);
 }
