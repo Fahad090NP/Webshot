@@ -40,7 +40,7 @@ function App() {
 
     const request = {
       mode,
-      format: mode === 'selection' ? ('png' as const) : format,
+      format,
       scale,
       quality: CAPTURE.DEFAULT_QUALITY,
     };
