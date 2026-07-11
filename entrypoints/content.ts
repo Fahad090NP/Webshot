@@ -21,6 +21,7 @@ let currentTileIndex: number = 0;
 let totalWidth: number = 0;
 let totalHeight: number = 0;
 let originalZoom: string = '1';
+let isCapturing: boolean = false;
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -67,18 +68,26 @@ function getPageDimensions(): PageDimensions {
 }
 
 async function startCapture(request: CaptureRequest): Promise<void> {
-  currentRequest = request;
-  currentSettings = await loadSettings();
-  capturedImages = [];
-  currentTileIndex = 0;
-  originalZoom = document.body.style.zoom || '1';
+  if (isCapturing) return;
+  isCapturing = true;
 
-  if (request.mode === 'viewport') {
-    await captureViewport();
-  } else if (request.mode === 'selection') {
-    await captureSelection();
-  } else {
-    await captureFullPage();
+  try {
+    const settings: WebShotSettings = await loadSettings();
+    currentRequest = request;
+    currentSettings = settings;
+    capturedImages = [];
+    currentTileIndex = 0;
+    originalZoom = document.body.style.zoom || '1';
+
+    if (request.mode === 'viewport') {
+      await captureViewport();
+    } else if (request.mode === 'selection') {
+      await captureSelection();
+    } else {
+      await captureFullPage();
+    }
+  } finally {
+    isCapturing = false;
   }
 }
 
