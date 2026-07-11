@@ -1,4 +1,4 @@
-// Background service worker: captureVisibleTab, context menus
+// Background service worker coordinating captureVisibleTab actions and context menu interactions.
 
 let activeTabId: number | null = null;
 
