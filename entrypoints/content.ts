@@ -198,8 +198,12 @@ async function captureFullPage(): Promise<void> {
 }
 
 async function captureSelection(): Promise<void> {
-  const sel: { x: number; y: number; width: number; height: number } | null =
-    await waitForSelection();
+  let sel: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null = await waitForSelection();
   if (sel == null) {
     browser.runtime
       .sendMessage({ type: 'captureCancelled' })
@@ -211,10 +215,12 @@ async function captureSelection(): Promise<void> {
   const isZoom = currentSettings?.zoomCapture === true && scale > 1;
 
   if (isZoom) {
-    sel.x *= scale;
-    sel.y *= scale;
-    sel.width *= scale;
-    sel.height *= scale;
+    sel = {
+      x: sel.x * scale,
+      y: sel.y * scale,
+      width: sel.width * scale,
+      height: sel.height * scale,
+    };
   }
 
   await applyZoom(scale);
