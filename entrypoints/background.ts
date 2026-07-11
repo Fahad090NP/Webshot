@@ -1,7 +1,5 @@
 // Background service worker: context menus, message relay, captureVisibleTab, download
 
-import type { CaptureRequest } from '@/lib/types';
-
 let activeTabId: number | null = null;
 
 async function getActiveTabId(): Promise<number> {
@@ -14,38 +12,28 @@ async function getActiveTabId(): Promise<number> {
 }
 
 browser.runtime.onMessage.addListener(
-  (message: unknown, sender: { tab?: { id?: number } }): undefined => {
+  (
+    message: unknown,
+    sender: { tab?: { id?: number } },
+    sendResponse: (response?: unknown) => void,
+  ): void => {
     const msg: Record<string, unknown> = message as Record<string, unknown>;
     const msgType: string | undefined = msg.type as string | undefined;
 
     if (msgType === 'requestCapture') {
       handleCaptureVisible(sender.tab?.id ?? activeTabId)
-        .then((result: { dataUri: string } | { error: string }): void => {
-          browser.runtime.sendMessage(result).catch((): void => {});
-        })
-        .catch((): void => {});
-    } else if (msgType === 'startCapture') {
-      handleStartCapture(msg.data as CaptureRequest, sender);
-    } else if (msgType === 'captureBlob') {
-      handleCaptureBlob(msg.data as { blob: Blob; filename: string });
+        .then(sendResponse)
+        .catch((err: unknown): void => {
+          sendResponse({ error: String(err) });
+        });
+      return true as never;
     }
 
-    return undefined;
+    if (msgType === 'captureBlob') {
+      handleCaptureBlob(msg.data as { blob: Blob; filename: string });
+    }
   },
 );
-
-function handleStartCapture(
-  data: CaptureRequest,
-  sender: { tab?: { id?: number } },
-): void {
-  const tabId: number | undefined = sender.tab?.id;
-  if (tabId != null) {
-    activeTabId = tabId;
-    browser.tabs
-      .sendMessage(tabId, { type: 'startCapture', data })
-      .catch((): void => {});
-  }
-}
 
 async function handleCaptureVisible(
   tabId: number | null,
