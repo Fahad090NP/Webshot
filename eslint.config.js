@@ -7,7 +7,7 @@ import reactHooks from 'eslint-plugin-react-hooks';
 
 export default tseslint.config(
   js.configs.recommended,
-  ...tseslint.configs.strictTypeChecked,
+  ...tseslint.configs.strict,
   {
     languageOptions: {
       parserOptions: {
