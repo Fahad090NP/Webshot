@@ -1,3 +1,5 @@
+// Options interface for Webshot extension: handles customization of defaults, capture parameters, and interactive behaviors.
+
 import { useState, useEffect, useCallback } from 'react';
 import type { WebShotSettings, OutputFormat } from '@/lib/types';
 import { loadSettings, saveSettings, CAPTURE } from '@/lib/captureConfig';
@@ -152,7 +154,6 @@ function App(): React.ReactElement {
             className="fieldInput"
             min={0}
             max={5000}
-            step={10}
             value={settings.captureDelay}
             onChange={(e: React.ChangeEvent<HTMLInputElement>): void => {
               updateSetting('captureDelay', Number(e.target.value));
@@ -185,7 +186,7 @@ function App(): React.ReactElement {
           <span className="fieldLabel">
             Show zoom warning
             <span className="fieldHint">
-              Shows a console warning when capturing above 1x with zoom enabled
+              Shows a warning when capturing above 1x with zoom enabled
             </span>
           </span>
           <input

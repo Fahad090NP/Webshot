@@ -1,43 +1,58 @@
 .container {
   max-width: 560px;
-  margin: 0 auto;
-  padding: 24px 20px;
-  font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  color: #1a1a1a;
+  margin: 40px auto;
+  padding: 30px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
 }
 
 .pageTitle {
-  font-size: 24px;
+  font-size: 26px;
   font-weight: 700;
   margin: 0 0 24px;
-  color: #1a73e8;
+  background: linear-gradient(135deg, hsl(217, 91%, 65%), hsl(260, 80%, 70%));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: -0.5px;
 }
 
 .section {
   margin-bottom: 24px;
-  padding-bottom: 24px;
-  border-bottom: 1px solid #e8eaed;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--border-glass);
+}
+
+.section:last-of-type {
+  border-bottom: none;
+  margin-bottom: 16px;
 }
 
 .sectionTitle {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
-  margin: 0 0 14px;
-  color: #5f6368;
+  margin: 0 0 16px;
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
+  letter-spacing: 1px;
 }
 
 .field {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px;
   margin-bottom: 12px;
-  padding: 10px 12px;
-  background: #f8f9fa;
-  border-radius: 8px;
+  padding: 12px 14px;
+  background: var(--bg-field);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  transition: border-color 0.2s;
+}
+
+.field:hover {
+  border-color: rgba(255, 255, 255, 0.15);
 }
 
 .fieldToggle {
@@ -46,8 +61,8 @@
 
 .fieldLabel {
   font-size: 13px;
-  font-weight: 500;
-  color: #3c4043;
+  font-weight: 600;
+  color: var(--text-primary);
   flex: 1;
 }
 
@@ -55,61 +70,91 @@
   display: block;
   font-size: 11px;
   font-weight: 400;
-  color: #80868b;
-  margin-top: 2px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.4;
 }
 
 .fieldInput {
-  padding: 6px 10px;
+  padding: 8px 12px;
   font-size: 13px;
-  border: 1px solid #dadce0;
-  border-radius: 6px;
-  background: #fff;
-  color: #1a1a1a;
-  min-width: 60px;
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  background: var(--bg-card);
+  color: var(--text-primary);
+  min-width: 70px;
+  outline: none;
+  transition: all 0.2s;
+}
+
+.fieldInput:focus {
+  border-color: var(--bg-primary);
+  box-shadow: 0 0 0 2px var(--border-focus);
 }
 
 input[type='checkbox'].fieldInput {
   min-width: auto;
   width: 18px;
   height: 18px;
-  accent-color: #1a73e8;
+  accent-color: var(--bg-primary);
+  cursor: pointer;
 }
 
 input[type='range'].fieldInput {
-  min-width: 120px;
+  min-width: 140px;
+  accent-color: var(--bg-primary);
+  cursor: pointer;
 }
 
 select.fieldInput {
-  min-width: 100px;
+  min-width: 110px;
+  cursor: pointer;
 }
 
 .saveBtn {
   display: block;
   width: 100%;
-  padding: 12px;
+  padding: 14px;
   font-size: 15px;
   font-weight: 600;
   border: none;
-  border-radius: 8px;
-  background: #1a73e8;
-  color: #fff;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, hsl(217, 91%, 60%), hsl(217, 91%, 50%));
+  color: var(--text-primary);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+  margin-top: 20px;
 }
 
 .saveBtn:hover {
-  background: #1557b0;
+  background: linear-gradient(135deg, hsl(217, 91%, 65%), hsl(217, 91%, 55%));
+  box-shadow: 0 6px 16px rgba(59, 130, 246, 0.35);
+  transform: translateY(-1px);
+}
+
+.saveBtn:active {
+  transform: translateY(0);
 }
 
 .errorMsg {
-  color: #d93025;
+  color: var(--color-error);
   font-size: 13px;
-  margin: 0 0 12px;
+  font-weight: 500;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius-md);
 }
 
 .successMsg {
-  color: #188038;
+  color: var(--color-success);
   font-size: 13px;
-  margin: 0 0 12px;
+  font-weight: 500;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.2);
+  border-radius: var(--radius-md);
 }
