@@ -1,23 +1,35 @@
-// Content script: page measurement, scroll grid, zoom capture, selection UI, composite & export
+// Content script for page measurement, scroll grid orchestration, zoom handling, element selection, and screenshot compositing.
 
 import type {
   CaptureRequest,
   PageDimensions,
   CaptureTile,
   WebShotSettings,
+  CapturedImage,
 } from '@/lib/types';
-import { renderToCanvas, computeScrollGrid } from '@/lib/captureEngine';
+import {
+  computeScrollGrid,
+  compositeAndExport,
+  blobToDataUri,
+  getFilename,
+} from '@/lib/captureEngine';
 import { CAPTURE, loadSettings } from '@/lib/captureConfig';
 
 let currentRequest: CaptureRequest | null = null;
 let currentSettings: WebShotSettings | null = null;
-let capturedImages: Array<{ x: number; y: number; dataUri: string }> = [];
+let capturedImages: CapturedImage[] = [];
 let scrollTiles: CaptureTile[] = [];
 let currentTileIndex: number = 0;
 let totalWidth: number = 0;
 let totalHeight: number = 0;
 let originalZoom: string = '1';
 let isCapturing: boolean = false;
+
+let originalX: number = 0;
+let originalY: number = 0;
+let originalOverflow: string = '';
+let originalBodyOverflowY: string = '';
+let captureOffset: { x: number; y: number } = { x: 0, y: 0 };
 
 export default defineContentScript({
   matches: ['<all_urls>'],
@@ -74,6 +86,9 @@ async function startCapture(request: CaptureRequest): Promise<void> {
     capturedImages = [];
     currentTileIndex = 0;
     originalZoom = document.body.style.zoom || '1';
+    originalX = window.scrollX;
+    originalY = window.scrollY;
+    captureOffset = { x: 0, y: 0 };
 
     if (request.mode === 'viewport') {
       await captureViewport();
@@ -118,20 +133,35 @@ function blockInteractions(block: boolean): void {
   }
 }
 
+function hideScrollbars(): void {
+  originalOverflow = document.documentElement.style.overflow;
+  originalBodyOverflowY = document.body.style.overflowY;
+  document.documentElement.style.overflow = 'hidden';
+  document.body.style.overflowY = 'visible';
+}
+
 async function captureViewport(): Promise<void> {
   const dims: PageDimensions = getPageDimensions();
+  captureOffset = { x: window.scrollX, y: window.scrollY };
 
+  hideScrollbars();
   applyZoom(currentRequest?.scale ?? 1);
   blockInteractions(true);
 
   try {
-    const result: { dataUri: string } = await requestCapture({
+    const result = await requestCapture({
+      x: window.scrollX,
+      y: window.scrollY,
+      width: dims.viewportWidth,
+      height: dims.viewportHeight,
+    });
+    capturedImages.push({
       x: 0,
       y: 0,
       width: dims.viewportWidth,
       height: dims.viewportHeight,
+      dataUri: result.dataUri,
     });
-    capturedImages.push({ x: 0, y: 0, dataUri: result.dataUri });
     totalWidth = dims.viewportWidth;
     totalHeight = dims.viewportHeight;
     await finalizeCapture();
@@ -145,8 +175,13 @@ async function captureFullPage(): Promise<void> {
   const dims: PageDimensions = getPageDimensions();
   totalWidth = dims.fullWidth;
   totalHeight = dims.fullHeight;
-  scrollTiles = computeScrollGrid(dims);
+  scrollTiles = computeScrollGrid(
+    dims,
+    currentSettings?.scrollPad ?? CAPTURE.SCROLL_PAD,
+  );
+  captureOffset = { x: 0, y: 0 };
 
+  hideScrollbars();
   applyZoom(currentRequest?.scale ?? 1);
   blockInteractions(true);
 
@@ -170,19 +205,27 @@ async function captureSelection(): Promise<void> {
 
   totalWidth = sel.width;
   totalHeight = sel.height;
+  captureOffset = { x: sel.x, y: sel.y };
 
+  hideScrollbars();
   applyZoom(currentRequest?.scale ?? 1);
   blockInteractions(true);
 
   try {
     if (sel.width <= window.innerWidth && sel.height <= window.innerHeight) {
-      const result: { dataUri: string } = await requestCapture({
+      const result = await requestCapture({
         x: sel.x,
         y: sel.y,
         width: sel.width,
         height: sel.height,
       });
-      capturedImages.push({ x: sel.x, y: sel.y, dataUri: result.dataUri });
+      capturedImages.push({
+        x: 0,
+        y: 0,
+        width: sel.width,
+        height: sel.height,
+        dataUri: result.dataUri,
+      });
       await finalizeCapture();
       return;
     }
@@ -195,14 +238,15 @@ async function captureSelection(): Promise<void> {
       viewportHeight: dims.viewportHeight,
       devicePixelRatio: dims.devicePixelRatio,
     };
-    scrollTiles = computeScrollGrid(clippedDims).map(
-      (t: CaptureTile): CaptureTile => ({
-        x: t.x + sel.x,
-        y: t.y + sel.y,
-        width: t.width,
-        height: t.height,
-      }),
-    );
+    scrollTiles = computeScrollGrid(
+      clippedDims,
+      currentSettings?.scrollPad ?? CAPTURE.SCROLL_PAD,
+    ).map((t: CaptureTile): CaptureTile => ({
+      x: t.x + sel.x,
+      y: t.y + sel.y,
+      width: t.width,
+      height: t.height,
+    }));
     await processNextTile();
   } finally {
     resetZoom();
@@ -210,10 +254,12 @@ async function captureSelection(): Promise<void> {
   }
 }
 
-function requestCapture(tile: CaptureTile): Promise<{ dataUri: string }> {
-  return new Promise<{ dataUri: string }>(
+function requestCapture(
+  tile: CaptureTile,
+): Promise<{ dataUri: string; x: number; y: number }> {
+  return new Promise<{ dataUri: string; x: number; y: number }>(
     (
-      resolve: (result: { dataUri: string }) => void,
+      resolve: (result: { dataUri: string; x: number; y: number }) => void,
       reject: (err: Error) => void,
     ): void => {
       const timeoutId: ReturnType<typeof setTimeout> = setTimeout(() => {
@@ -221,23 +267,28 @@ function requestCapture(tile: CaptureTile): Promise<{ dataUri: string }> {
       }, CAPTURE.EXECUTE_TIMEOUT);
 
       window.scrollTo(tile.x, tile.y);
+      const x = window.scrollX;
+      const y = window.scrollY;
 
       setTimeout((): void => {
-        browser.runtime.sendMessage(
-          { type: 'requestCapture', data: { x: tile.x, y: tile.y } },
-          (response: unknown): void => {
+        browser.runtime
+          .sendMessage({ type: 'requestCapture', data: { x, y } })
+          .then((response: unknown): void => {
             clearTimeout(timeoutId);
             const resp: { dataUri?: string; error?: string } | undefined =
               response as { dataUri?: string; error?: string } | undefined;
             if (resp?.dataUri != null) {
-              resolve({ dataUri: resp.dataUri });
+              resolve({ dataUri: resp.dataUri, x, y });
             } else {
               const errorMsg: string = resp?.error ?? 'Capture failed';
               reject(new Error(errorMsg));
             }
-          },
-        );
-      }, CAPTURE.CAPTURE_DELAY);
+          })
+          .catch((err: unknown): void => {
+            clearTimeout(timeoutId);
+            reject(err instanceof Error ? err : new Error(String(err)));
+          });
+      }, currentSettings?.captureDelay ?? CAPTURE.CAPTURE_DELAY);
     },
   );
 }
@@ -250,8 +301,14 @@ async function processNextTile(): Promise<void> {
 
   const tile: CaptureTile = scrollTiles[currentTileIndex];
   try {
-    const result: { dataUri: string } = await requestCapture(tile);
-    capturedImages.push({ x: tile.x, y: tile.y, dataUri: result.dataUri });
+    const result = await requestCapture(tile);
+    capturedImages.push({
+      x: result.x - captureOffset.x,
+      y: result.y - captureOffset.y,
+      width: tile.width,
+      height: tile.height,
+      dataUri: result.dataUri,
+    });
 
     browser.runtime
       .sendMessage({
@@ -263,7 +320,13 @@ async function processNextTile(): Promise<void> {
     currentTileIndex++;
     await processNextTile();
   } catch {
-    await finalizeCapture();
+    cleanup();
+    browser.runtime
+      .sendMessage({
+        type: 'captureError',
+        data: { message: 'Capture failed' },
+      })
+      .catch((): void => {});
   }
 }
 
@@ -273,7 +336,10 @@ async function finalizeCapture(): Promise<void> {
   }
 
   const dataUri: string = await exportCaptureAsDataUri();
-  const filename: string = getFilename(currentRequest.format);
+  const filename: string = getFilename(
+    window.location.href,
+    currentRequest.format,
+  );
 
   const a: HTMLAnchorElement = document.createElement('a');
   a.href = dataUri;
@@ -286,94 +352,15 @@ async function finalizeCapture(): Promise<void> {
 
 async function exportCaptureAsDataUri(): Promise<string> {
   const r: CaptureRequest = currentRequest as CaptureRequest;
-
-  if (r.format === 'svg') {
-    return blobToDataUri(await exportAsSvg(r));
-  }
-
-  if (r.format === 'pdf') {
-    return blobToDataUri(await exportAsPdf(r));
-  }
-
-  const canvas: HTMLCanvasElement = await renderToCanvas(
+  const blob: Blob = await compositeAndExport(
     capturedImages,
     totalWidth,
     totalHeight,
+    r.format,
     r.scale,
+    r.quality,
   );
-  const mimeType: string =
-    r.format === 'png'
-      ? 'image/png'
-      : r.format === 'jpeg'
-        ? 'image/jpeg'
-        : 'image/webp';
-  return canvas.toDataURL(mimeType, r.quality);
-}
-
-function blobToDataUri(blob: Blob): Promise<string> {
-  return new Promise<string>(
-    (resolve: (result: string) => void, reject: (err: Error) => void): void => {
-      const reader: FileReader = new FileReader();
-      reader.onload = (): void => {
-        resolve(reader.result as string);
-      };
-      reader.onerror = (): void => {
-        reject(new Error('Failed to read blob'));
-      };
-      reader.readAsDataURL(blob);
-    },
-  );
-}
-
-async function exportAsSvg(r: CaptureRequest): Promise<Blob> {
-  const canvas: HTMLCanvasElement = await renderToCanvas(
-    capturedImages,
-    totalWidth,
-    totalHeight,
-    r.scale,
-  );
-  const pngDataUri: string = canvas.toDataURL('image/png');
-  const scaledW: number = Math.round(totalWidth * r.scale);
-  const scaledH: number = Math.round(totalHeight * r.scale);
-  const svg: string =
-    '<?xml version="1.0" encoding="UTF-8"?>' +
-    `<svg xmlns="http://www.w3.org/2000/svg" width="${scaledW}" height="${scaledH}" viewBox="0 0 ${scaledW} ${scaledH}">` +
-    `<image href="${pngDataUri}" width="${scaledW}" height="${scaledH}"/>` +
-    '</svg>';
-  return new Blob([svg], { type: 'image/svg+xml' });
-}
-
-async function exportAsPdf(r: CaptureRequest): Promise<Blob> {
-  const { jsPDF: JsPdfClass } = await import('jspdf');
-  const scaledW: number = Math.round(totalWidth * r.scale);
-  const scaledH: number = Math.round(totalHeight * r.scale);
-  const canvas: HTMLCanvasElement = await renderToCanvas(
-    capturedImages,
-    totalWidth,
-    totalHeight,
-    r.scale,
-  );
-  const dataUri: string = canvas.toDataURL('image/png');
-  const doc: InstanceType<typeof JsPdfClass> = new JsPdfClass({
-    orientation: scaledW > scaledH ? 'landscape' : 'portrait',
-    unit: 'px',
-    format: [scaledW, scaledH],
-  });
-  doc.addImage(dataUri, 'PNG', 0, 0, scaledW, scaledH);
-  const pdfOutput: ArrayBuffer = doc.output('arraybuffer');
-  return new Blob([pdfOutput], { type: 'application/pdf' });
-}
-
-function getFilename(format: string): string {
-  const url: string = window.location.href;
-  const path: string = url.split('?')[0]?.split('#')[0] ?? '';
-  const name: string = path
-    .replace(/^https?:\/\//, '')
-    .replace(/[^A-z0-9]+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^_+-/, '')
-    .replace(/_+-$/, '');
-  return `webshot-${name || 'page'}-${Date.now()}.${format}`;
+  return blobToDataUri(blob);
 }
 
 function waitForSelection(): Promise<{
@@ -453,18 +440,33 @@ function waitForSelection(): Promise<{
       }
 
       function onMouseMove(e: MouseEvent): void {
-        if (!isSelecting || mode !== 'drag') {
-          selectionBox.style.display = 'none';
-          return;
+        if (isSelecting && mode === 'drag') {
+          const x: number = Math.min(e.clientX, startX - window.scrollX);
+          const y: number = Math.min(e.clientY, startY - window.scrollY);
+          const w: number = Math.abs(e.clientX - (startX - window.scrollX));
+          const h: number = Math.abs(e.clientY - (startY - window.scrollY));
+          selectionBox.style.left = `${x}px`;
+          selectionBox.style.top = `${y}px`;
+          selectionBox.style.width = `${w}px`;
+          selectionBox.style.height = `${h}px`;
+          selectionBox.style.display = 'block';
+        } else if (!isSelecting) {
+          const el: Element | null = getElementAtPoint(e.clientX, e.clientY);
+          if (
+            el != null &&
+            el !== document.body &&
+            el !== document.documentElement
+          ) {
+            const rect: DOMRect = el.getBoundingClientRect();
+            selectionBox.style.left = `${rect.left}px`;
+            selectionBox.style.top = `${rect.top}px`;
+            selectionBox.style.width = `${rect.width}px`;
+            selectionBox.style.height = `${rect.height}px`;
+            selectionBox.style.display = 'block';
+          } else {
+            selectionBox.style.display = 'none';
+          }
         }
-        const x: number = Math.min(e.clientX, startX - window.scrollX);
-        const y: number = Math.min(e.clientY, startY - window.scrollY);
-        const w: number = Math.abs(e.clientX - (startX - window.scrollX));
-        const h: number = Math.abs(e.clientY - (startY - window.scrollY));
-        selectionBox.style.left = `${x}px`;
-        selectionBox.style.top = `${y}px`;
-        selectionBox.style.width = `${w}px`;
-        selectionBox.style.height = `${h}px`;
       }
 
       function onMouseUp(e: MouseEvent): void {
@@ -545,6 +547,15 @@ function cleanup(): void {
   capturedImages = [];
   scrollTiles = [];
   currentTileIndex = 0;
+
+  if (originalOverflow !== '') {
+    document.documentElement.style.overflow = originalOverflow;
+  }
+  if (originalBodyOverflowY !== '') {
+    document.body.style.overflowY = originalBodyOverflowY;
+  }
+  window.scrollTo(originalX, originalY);
+
   resetZoom();
   blockInteractions(false);
 }
