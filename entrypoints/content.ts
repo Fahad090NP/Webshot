@@ -85,6 +85,8 @@ async function startCapture(request: CaptureRequest): Promise<void> {
     currentSettings = settings;
     capturedImages = [];
     currentTileIndex = 0;
+    totalWidth = 0;
+    totalHeight = 0;
     originalZoom = document.body.style.zoom || '1';
     originalX = window.scrollX;
     originalY = window.scrollY;
@@ -139,7 +141,8 @@ function hideScrollbars(): void {
   originalOverflow = document.documentElement.style.overflow;
   originalBodyOverflowY = document.body.style.overflowY;
   document.documentElement.style.overflow = 'hidden';
-  document.body.style.overflowY = 'visible';
+  document.body.style.overflow = 'hidden';
+  document.body.style.overflowY = 'hidden';
 }
 
 async function captureViewport(): Promise<void> {
@@ -294,6 +297,11 @@ function requestCapture(
       const x = window.scrollX;
       const y = window.scrollY;
 
+      const captureDelay = Math.max(
+        0,
+        currentSettings?.captureDelay ?? CAPTURE.CAPTURE_DELAY,
+      );
+
       setTimeout((): void => {
         browser.runtime
           .sendMessage({ type: 'requestCapture', data: { x, y } })
@@ -312,12 +320,23 @@ function requestCapture(
             clearTimeout(timeoutId);
             reject(err instanceof Error ? err : new Error(String(err)));
           });
-      }, currentSettings?.captureDelay ?? CAPTURE.CAPTURE_DELAY);
+      }, captureDelay);
     },
   );
 }
 
 async function processNextTile(): Promise<void> {
+  if (scrollTiles.length === 0) {
+    browser.runtime
+      .sendMessage({
+        type: 'captureError',
+        data: { message: 'Nothing to capture' },
+      })
+      .catch((): void => {});
+    cleanup();
+    return;
+  }
+
   if (currentTileIndex >= scrollTiles.length) {
     await finalizeCapture();
     return;
@@ -356,6 +375,13 @@ async function processNextTile(): Promise<void> {
 
 async function finalizeCapture(): Promise<void> {
   if (currentRequest == null || capturedImages.length === 0) {
+    browser.runtime
+      .sendMessage({
+        type: 'captureError',
+        data: { message: 'No capture data' },
+      })
+      .catch((): void => {});
+    cleanup();
     return;
   }
 

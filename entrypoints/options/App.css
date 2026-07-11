@@ -127,14 +127,20 @@ select.fieldInput {
   margin-top: 20px;
 }
 
-.saveBtn:hover {
+.saveBtn:hover:not(:disabled) {
   background: linear-gradient(135deg, hsl(217, 91%, 65%), hsl(217, 91%, 55%));
   box-shadow: 0 6px 16px rgba(59, 130, 246, 0.35);
   transform: translateY(-1px);
 }
 
-.saveBtn:active {
+.saveBtn:active:not(:disabled) {
   transform: translateY(0);
+}
+
+.saveBtn:disabled {
+  opacity: 0.7;
+  cursor: progress;
+  box-shadow: none;
 }
 
 .errorMsg {

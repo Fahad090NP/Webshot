@@ -117,7 +117,12 @@ function App(): React.ReactElement {
 
         const request: Record<string, unknown> = {
           type: 'startCapture',
-          data: { mode, format, scale, quality: CAPTURE.DEFAULT_QUALITY },
+          data: {
+            mode,
+            format,
+            scale,
+            quality: settings?.defaultQuality ?? CAPTURE.DEFAULT_QUALITY,
+          },
         };
 
         browser.tabs
@@ -143,7 +148,7 @@ function App(): React.ReactElement {
         setError('Failed to query tabs');
         setState('error');
       });
-  }, [mode, format, scale]);
+  }, [mode, format, scale, settings?.defaultQuality]);
 
   const handleOpenSettings = useCallback((): void => {
     browser.runtime.openOptionsPage().catch((): void => {});

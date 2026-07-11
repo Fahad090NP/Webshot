@@ -35,19 +35,80 @@ export const FORMAT_EXTENSIONS: Record<string, string> = {
   pdf: 'pdf',
 };
 
+const VALID_FORMATS: OutputFormat[] = ['png', 'jpeg', 'webp', 'svg', 'pdf'];
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeBoolean(value: unknown, fallback: boolean): boolean {
+  if (value === true || value === 'true') return true;
+  if (value === false || value === 'false') return false;
+  return fallback;
+}
+
+function normalizeFormat(value: unknown): OutputFormat {
+  return VALID_FORMATS.includes(value as OutputFormat)
+    ? (value as OutputFormat)
+    : CAPTURE.DEFAULT_FORMAT;
+}
+
+function normalizeSettings(
+  raw: Partial<WebShotSettings> | undefined,
+): WebShotSettings {
+  const source = raw ?? {};
+  return {
+    zoomCapture: normalizeBoolean(
+      source.zoomCapture,
+      DEFAULT_SETTINGS.zoomCapture,
+    ),
+    blockInteractions: normalizeBoolean(
+      source.blockInteractions,
+      DEFAULT_SETTINGS.blockInteractions,
+    ),
+    showZoomWarning: normalizeBoolean(
+      source.showZoomWarning,
+      DEFAULT_SETTINGS.showZoomWarning,
+    ),
+    defaultFormat: normalizeFormat(source.defaultFormat),
+    defaultScale: Math.round(
+      clamp(
+        Number(source.defaultScale) || CAPTURE.DEFAULT_SCALE,
+        CAPTURE.MIN_SCALE,
+        CAPTURE.MAX_SCALE,
+      ),
+    ),
+    defaultQuality: clamp(
+      Number(source.defaultQuality) || DEFAULT_SETTINGS.defaultQuality,
+      0.1,
+      1,
+    ),
+    scrollPad: Math.round(
+      clamp(Number(source.scrollPad) || DEFAULT_SETTINGS.scrollPad, 0, 1000),
+    ),
+    captureDelay: Math.round(
+      clamp(
+        Number(source.captureDelay) || DEFAULT_SETTINGS.captureDelay,
+        0,
+        5000,
+      ),
+    ),
+  };
+}
+
 export async function loadSettings(): Promise<WebShotSettings> {
   try {
-    const result: { settings?: WebShotSettings } =
+    const result: { settings?: Partial<WebShotSettings> } =
       await browser.storage.local.get('settings');
     if (result.settings != null) {
-      return { ...DEFAULT_SETTINGS, ...result.settings };
+      return normalizeSettings(result.settings);
     }
   } catch {
     // storage unavailable, use defaults
   }
-  return { ...DEFAULT_SETTINGS };
+  return normalizeSettings(DEFAULT_SETTINGS);
 }
 
 export async function saveSettings(settings: WebShotSettings): Promise<void> {
-  await browser.storage.local.set({ settings });
+  await browser.storage.local.set({ settings: normalizeSettings(settings) });
 }

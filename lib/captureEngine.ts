@@ -22,9 +22,14 @@ export function computeScrollGrid(
   scrollPad: number,
 ): CaptureTile[] {
   const { fullWidth, fullHeight, viewportWidth, viewportHeight } = dims;
-  const yDelta = viewportHeight - Math.min(viewportHeight, scrollPad);
+  const safeViewportWidth = Math.max(1, viewportWidth);
+  const safeViewportHeight = Math.max(1, viewportHeight);
+  const yDelta = Math.max(
+    1,
+    safeViewportHeight - Math.min(safeViewportHeight, scrollPad),
+  );
   const tiles: CaptureTile[] = [];
-  const maxScrollY = Math.max(0, fullHeight - viewportHeight);
+  const maxScrollY = Math.max(0, fullHeight - safeViewportHeight);
 
   let yPos = 0;
   while (yPos <= maxScrollY) {
@@ -33,10 +38,10 @@ export function computeScrollGrid(
       tiles.push({
         x: xPos,
         y: yPos,
-        width: viewportWidth,
-        height: viewportHeight,
+        width: safeViewportWidth,
+        height: safeViewportHeight,
       });
-      xPos += viewportWidth;
+      xPos += safeViewportWidth;
     }
     if (yPos === maxScrollY) {
       break;

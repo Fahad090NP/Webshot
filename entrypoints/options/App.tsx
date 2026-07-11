@@ -9,6 +9,7 @@ function App(): React.ReactElement {
   const [settings, setSettings] = useState<WebShotSettings | null>(null);
   const [saved, setSaved] = useState<boolean>(false);
   const [error, setError] = useState<string>('');
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
   useEffect((): void => {
     loadSettings()
@@ -34,6 +35,7 @@ function App(): React.ReactElement {
 
   const handleSave = useCallback((): void => {
     if (settings == null) return;
+    setIsSaving(true);
     saveSettings(settings)
       .then((): void => {
         setSaved(true);
@@ -44,6 +46,9 @@ function App(): React.ReactElement {
       })
       .catch((err: unknown): void => {
         setError(String(err));
+      })
+      .finally((): void => {
+        setIsSaving(false);
       });
   }, [settings]);
 
@@ -129,7 +134,8 @@ function App(): React.ReactElement {
             max={1000}
             value={settings.scrollPad}
             onChange={(e: React.ChangeEvent<HTMLInputElement>): void => {
-              updateSetting('scrollPad', Number(e.target.value));
+              const parsed = Number(e.target.value);
+              updateSetting('scrollPad', Number.isFinite(parsed) ? parsed : 0);
             }}
           />
         </label>
@@ -145,7 +151,11 @@ function App(): React.ReactElement {
             max={5000}
             value={settings.captureDelay}
             onChange={(e: React.ChangeEvent<HTMLInputElement>): void => {
-              updateSetting('captureDelay', Number(e.target.value));
+              const parsed = Number(e.target.value);
+              updateSetting(
+                'captureDelay',
+                Number.isFinite(parsed) ? parsed : 0,
+              );
             }}
           />
         </label>
@@ -211,8 +221,8 @@ function App(): React.ReactElement {
       {error !== '' && <p className="errorMsg">{error}</p>}
       {saved && <p className="successMsg">Settings saved!</p>}
 
-      <button className="saveBtn" onClick={handleSave}>
-        Save Settings
+      <button className="saveBtn" onClick={handleSave} disabled={isSaving}>
+        {isSaving ? 'Saving…' : 'Save Settings'}
       </button>
     </div>
   );
