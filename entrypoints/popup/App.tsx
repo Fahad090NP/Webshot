@@ -109,16 +109,12 @@ function App(): React.ReactElement {
         const d: { complete: number } = msg.data as { complete: number };
         setProgress(d.complete);
       } else if (msgType === 'captureBlob') {
-        const d: { blob: Blob; filename: string } = msg.data as {
-          blob: Blob;
-          filename: string;
-        };
-        browser.runtime
-          .sendMessage({ type: 'captureBlob', data: d })
-          .catch((): void => {});
         completed = true;
         setState('done');
         browser.runtime.onMessage.removeListener(listener);
+        setTimeout((): void => {
+          window.close();
+        }, 1_500);
       } else if (msgType === 'captureCancelled') {
         setState('ready');
         browser.runtime.onMessage.removeListener(listener);
