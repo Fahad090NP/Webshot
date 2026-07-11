@@ -89,47 +89,58 @@ function App(): React.ReactElement {
           data: { mode, format, scale, quality: CAPTURE.DEFAULT_QUALITY },
         };
 
-        browser.tabs.sendMessage(tabList[0].id, request).catch((): void => {
-          setError(
-            'Failed to communicate with content script. Try reloading the page.',
-          );
-          setState('error');
-        });
+        browser.tabs
+          .sendMessage(tabList[0].id, request)
+          .then((): void => {
+            const listener: (message: unknown) => void = (
+              message: unknown,
+            ): void => {
+              const msg: Record<string, unknown> = message as Record<
+                string,
+                unknown
+              >;
+              const msgType: string | undefined = msg.type as
+                string | undefined;
+
+              if (msgType === 'captureProgress') {
+                const d: { complete: number } = msg.data as {
+                  complete: number;
+                };
+                setProgress(d.complete);
+              } else if (msgType === 'captureBlob') {
+                completed = true;
+                setState('done');
+                browser.runtime.onMessage.removeListener(listener);
+                setTimeout((): void => {
+                  window.close();
+                }, 1_500);
+              } else if (msgType === 'captureCancelled') {
+                setState('ready');
+                browser.runtime.onMessage.removeListener(listener);
+              }
+            };
+
+            browser.runtime.onMessage.addListener(listener);
+
+            setTimeout((): void => {
+              browser.runtime.onMessage.removeListener(listener);
+              if (!completed) {
+                setError('Capture timed out');
+                setState('error');
+              }
+            }, 120_000);
+          })
+          .catch((): void => {
+            setError(
+              'Failed to communicate with content script. Try reloading the page.',
+            );
+            setState('error');
+          });
       })
       .catch((): void => {
         setError('Failed to query tabs');
         setState('error');
       });
-
-    const listener: (message: unknown) => void = (message: unknown): void => {
-      const msg: Record<string, unknown> = message as Record<string, unknown>;
-      const msgType: string | undefined = msg.type as string | undefined;
-
-      if (msgType === 'captureProgress') {
-        const d: { complete: number } = msg.data as { complete: number };
-        setProgress(d.complete);
-      } else if (msgType === 'captureBlob') {
-        completed = true;
-        setState('done');
-        browser.runtime.onMessage.removeListener(listener);
-        setTimeout((): void => {
-          window.close();
-        }, 1_500);
-      } else if (msgType === 'captureCancelled') {
-        setState('ready');
-        browser.runtime.onMessage.removeListener(listener);
-      }
-    };
-
-    browser.runtime.onMessage.addListener(listener);
-
-    setTimeout((): void => {
-      browser.runtime.onMessage.removeListener(listener);
-      if (!completed) {
-        setError('Capture timed out');
-        setState('error');
-      }
-    }, 120_000);
   }, [mode, format, scale]);
 
   const handleOpenSettings = useCallback((): void => {
