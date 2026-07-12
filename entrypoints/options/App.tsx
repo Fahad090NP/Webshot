@@ -94,6 +94,27 @@ function App(): React.ReactElement {
       });
   }, [settings]);
 
+  const handleResetSettings = useCallback((): void => {
+    if (
+      window.confirm(
+        'Are you sure you want to reset all configurations to default values?',
+      )
+    ) {
+      setSettings(DEFAULT_SETTINGS);
+      saveSettings(DEFAULT_SETTINGS)
+        .then((): void => {
+          setSaved(true);
+          setError('');
+          setTimeout(() => {
+            setSaved(false);
+          }, 2000);
+        })
+        .catch((err: unknown) => {
+          setError(String(err));
+        });
+    }
+  }, []);
+
   const handleAddCustomDevice = useCallback((): void => {
     if (settings == null) return;
     if (newDeviceName === '') {
@@ -451,12 +472,39 @@ function App(): React.ReactElement {
             </label>
           </section>
 
+          <section className="section">
+            <h2 className="sectionTitle">Keyboard Shortcuts</h2>
+            <div className="shortcutsGrid">
+              <div className="shortcutCard">
+                <kbd className="shortcutKey">Ctrl + Shift + Y</kbd>
+                <span className="shortcutDesc">Capture Full Page</span>
+              </div>
+              <div className="shortcutCard">
+                <kbd className="shortcutKey">Ctrl + Shift + U</kbd>
+                <span className="shortcutDesc">Capture Viewport</span>
+              </div>
+            </div>
+          </section>
+
           {error !== '' && <p className="errorMsg">{error}</p>}
           {saved && <p className="successMsg">Settings saved!</p>}
 
-          <button className="saveBtn" onClick={handleSave} disabled={isSaving}>
-            {isSaving ? 'Saving…' : 'Save Settings'}
-          </button>
+          <div className="generalActions">
+            <button
+              className="saveBtn"
+              onClick={handleSave}
+              disabled={isSaving}
+            >
+              {isSaving ? 'Saving…' : 'Save Settings'}
+            </button>
+            <button
+              className="resetBtn"
+              onClick={handleResetSettings}
+              disabled={isSaving}
+            >
+              Reset to Defaults
+            </button>
+          </div>
         </div>
       )}
 
