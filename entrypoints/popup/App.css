@@ -57,13 +57,15 @@
   letter-spacing: 1px;
 }
 
-.modeGroup {
+.modeGroup,
+.engineGroup {
   display: flex;
   gap: 8px;
   margin-bottom: 18px;
 }
 
-.modeBtn {
+.modeBtn,
+.engineBtn {
   flex: 1;
   padding: 8px 10px;
   font-size: 11px;
@@ -76,13 +78,15 @@
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.modeBtn:hover:not(:disabled) {
+.modeBtn:hover:not(:disabled),
+.engineBtn:hover:not(:disabled) {
   background: var(--bg-field-hover);
   color: var(--text-primary);
   border-color: rgba(255, 255, 255, 0.15);
 }
 
-.modeBtn.active {
+.modeBtn.active,
+.engineBtn.active {
   background: var(--bg-primary);
   color: var(--text-primary);
   border-color: var(--bg-primary);
