@@ -4,35 +4,92 @@
   --font-sans:
     'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 
-  --bg-base: hsl(222, 25%, 10%);
-  --bg-card: hsl(222, 24%, 13%);
-  --bg-field: hsl(222, 24%, 8%);
-  --bg-field-hover: hsl(222, 24%, 12%);
+  /* Sleek Dark Mode HSL Palettes */
+  --bg-base: hsl(222, 25%, 8%);
+  --bg-card: hsl(222, 24%, 12%);
+  --bg-card-hover: hsl(222, 24%, 15%);
+  --bg-field: hsl(222, 24%, 6%);
+  --bg-field-hover: hsl(222, 24%, 10%);
   --bg-primary: hsl(217, 91%, 60%);
   --bg-primary-hover: hsl(217, 91%, 65%);
   --bg-primary-active: hsl(217, 91%, 55%);
-  --bg-glass: rgba(17, 24, 39, 0.7);
+  --bg-glass: rgba(15, 23, 42, 0.75);
 
-  --border-glass: rgba(255, 255, 255, 0.08);
-  --border-focus: rgba(59, 130, 246, 0.5);
+  --border-glass: rgba(255, 255, 255, 0.06);
+  --border-active: rgba(59, 130, 246, 0.4);
+  --border-focus: rgba(59, 130, 246, 0.6);
 
   --text-primary: hsl(210, 40%, 98%);
-  --text-secondary: hsl(215, 20%, 75%);
-  --text-muted: hsl(215, 16%, 55%);
+  --text-secondary: hsl(215, 20%, 78%);
+  --text-muted: hsl(215, 16%, 58%);
 
   --color-success: hsl(142, 72%, 45%);
   --color-error: hsl(0, 84%, 60%);
   --color-warning: hsl(38, 92%, 50%);
-  --bg-warning: rgba(245, 158, 11, 0.1);
-  --border-warning: rgba(245, 158, 11, 0.2);
+  --bg-warning: rgba(245, 158, 11, 0.08);
+  --border-warning: rgba(245, 158, 11, 0.15);
 
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  /* Premium Gradients */
+  --gradient-primary: linear-gradient(
+    135deg,
+    hsl(217, 91%, 60%),
+    hsl(260, 80%, 65%)
+  );
+  --gradient-hover: linear-gradient(
+    135deg,
+    hsl(217, 91%, 65%),
+    hsl(260, 80%, 70%)
+  );
+  --gradient-card: linear-gradient(
+    135deg,
+    hsl(222, 24%, 13%),
+    hsl(222, 24%, 10%)
+  );
+
+  /* Drop Shadows & Blur */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.1);
   --shadow-md:
-    0 4px 6px -1px rgba(0, 0, 0, 0.2), 0 2px 4px -1px rgba(0, 0, 0, 0.15);
+    0 4px 12px -2px rgba(0, 0, 0, 0.25), 0 2px 6px -1px rgba(0, 0, 0, 0.15);
   --shadow-lg:
-    0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+    0 12px 24px -4px rgba(0, 0, 0, 0.4), 0 6px 12px -2px rgba(0, 0, 0, 0.25);
+  --shadow-primary: 0 4px 16px rgba(59, 130, 246, 0.25);
+  --blur-glass: 12px;
 
+  /* Border Radii */
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
+  --radius-xl: 20px;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scaleUp {
+  from {
+    transform: scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(15px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
 }
