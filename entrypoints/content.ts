@@ -104,14 +104,6 @@ async function startCapture(request: CaptureRequest): Promise<void> {
   }
 }
 
-async function applyZoom(scale: number): Promise<void> {
-  if (scale > 1 && currentSettings?.zoomCapture === true) {
-    document.body.style.zoom = String(scale);
-    // Allow layout reflow to settle
-    await new Promise((resolve) => setTimeout(resolve, 150));
-  }
-}
-
 function resetZoom(): void {
   document.body.style.zoom = originalZoom;
 }
@@ -174,8 +166,6 @@ async function captureViewport(): Promise<void> {
 }
 
 async function captureFullPage(): Promise<void> {
-  await applyZoom(currentRequest?.scale ?? 1);
-
   const dims: PageDimensions = getPageDimensions();
   totalWidth = dims.fullWidth;
   totalHeight = dims.fullHeight;
@@ -191,13 +181,12 @@ async function captureFullPage(): Promise<void> {
   try {
     await processNextTile();
   } finally {
-    resetZoom();
     blockInteractions(false);
   }
 }
 
 async function captureSelection(): Promise<void> {
-  let sel: {
+  const sel: {
     x: number;
     y: number;
     width: number;
@@ -209,20 +198,6 @@ async function captureSelection(): Promise<void> {
       .catch((): void => {});
     return;
   }
-
-  const scale = currentRequest?.scale ?? 1;
-  const isZoom = currentSettings?.zoomCapture === true && scale > 1;
-
-  if (isZoom) {
-    sel = {
-      x: sel.x * scale,
-      y: sel.y * scale,
-      width: sel.width * scale,
-      height: sel.height * scale,
-    };
-  }
-
-  await applyZoom(scale);
 
   totalWidth = sel.width;
   totalHeight = sel.height;
@@ -272,7 +247,6 @@ async function captureSelection(): Promise<void> {
     }));
     await processNextTile();
   } finally {
-    resetZoom();
     blockInteractions(false);
   }
 }
@@ -405,19 +379,12 @@ async function finalizeCapture(): Promise<void> {
 
 async function exportCaptureAsDataUri(): Promise<string> {
   const r: CaptureRequest = currentRequest as CaptureRequest;
-  const scale = r.scale;
-  const isZoom =
-    currentSettings?.zoomCapture === true &&
-    scale > 1 &&
-    currentRequest?.mode !== 'viewport';
-  const activeScale = isZoom ? 1 : scale;
-
   const blob: Blob = await compositeAndExport(
     capturedImages,
     totalWidth,
     totalHeight,
     r.format,
-    activeScale,
+    r.scale,
     r.quality,
   );
   return blobToDataUri(blob);
