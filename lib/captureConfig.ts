@@ -1,6 +1,6 @@
 // Centralized configuration for capture behavior and default settings
 
-import type { WebShotSettings, OutputFormat } from './types';
+import type { WebShotSettings, OutputFormat, DeviceProfile } from './types';
 
 export const CAPTURE = {
   SCROLL_PAD: 200,
@@ -16,14 +16,93 @@ export const CAPTURE = {
   DEFAULT_QUALITY: 0.92,
 } as const;
 
+export const PRESET_DEVICES: DeviceProfile[] = [
+  {
+    id: 'iphoneSe',
+    name: 'iPhone SE',
+    width: 375,
+    height: 667,
+    mobile: true,
+    userAgent:
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+    category: 'mobile',
+  },
+  {
+    id: 'iphone14Pro',
+    name: 'iPhone 14 Pro',
+    width: 393,
+    height: 852,
+    mobile: true,
+    userAgent:
+      'Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Mobile/15E148 Safari/604.1',
+    category: 'mobile',
+  },
+  {
+    id: 'ipadAir',
+    name: 'iPad Air',
+    width: 820,
+    height: 1180,
+    mobile: true,
+    userAgent:
+      'Mozilla/5.0 (iPad; CPU OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+    category: 'tablet',
+  },
+  {
+    id: 'ipadPro',
+    name: 'iPad Pro',
+    width: 1024,
+    height: 1366,
+    mobile: true,
+    userAgent:
+      'Mozilla/5.0 (iPad; CPU OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1',
+    category: 'tablet',
+  },
+  {
+    id: 'desktopHd',
+    name: 'Desktop (1080p)',
+    width: 1920,
+    height: 1080,
+    mobile: false,
+    userAgent:
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    category: 'desktop',
+  },
+  {
+    id: 'desktop4k',
+    name: 'Desktop (4K)',
+    width: 3840,
+    height: 2160,
+    mobile: false,
+    userAgent:
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    category: 'desktop',
+  },
+];
+
 export const DEFAULT_SETTINGS: WebShotSettings = {
+  zoomCapture: true,
   blockInteractions: true,
   showZoomWarning: true,
   defaultFormat: 'png',
   defaultScale: 2,
   defaultQuality: 0.92,
+  autoDownload: true,
   scrollPad: 200,
   captureDelay: 150,
+  customDevices: [],
+  activeEngine: 'classic',
+  activeDeviceId: 'current',
+  pdfMultiPage: false,
+  filenameTemplate: 'webshot-{title}-{date}-{time}',
+  maxHistoryItems: 50,
+};
+
+export const FORMAT_MIME: Record<string, string> = {
+  png: 'image/png',
+  jpeg: 'image/jpeg',
+  webp: 'image/webp',
+  svg: 'image/svg+xml',
+  pdf: 'application/pdf',
 };
 
 export const FORMAT_EXTENSIONS: Record<string, string> = {
@@ -34,99 +113,19 @@ export const FORMAT_EXTENSIONS: Record<string, string> = {
   pdf: 'pdf',
 };
 
-const VALID_FORMATS: OutputFormat[] = ['png', 'jpeg', 'webp', 'svg', 'pdf'];
-
-function clamp(value: number, min: number, max: number): number {
-  return Math.min(max, Math.max(min, value));
-}
-
-function normalizeBoolean(value: unknown, fallback: boolean): boolean {
-  if (value === true || value === 'true') return true;
-  if (value === false || value === 'false') return false;
-  return fallback;
-}
-
-function normalizeFormat(value: unknown): OutputFormat {
-  return VALID_FORMATS.includes(value as OutputFormat)
-    ? (value as OutputFormat)
-    : CAPTURE.DEFAULT_FORMAT;
-}
-
-function normalizeSettings(
-  raw: Partial<WebShotSettings> | undefined,
-): WebShotSettings {
-  const source = raw ?? {};
-  return {
-    blockInteractions: normalizeBoolean(
-      source.blockInteractions,
-      DEFAULT_SETTINGS.blockInteractions,
-    ),
-    showZoomWarning: normalizeBoolean(
-      source.showZoomWarning,
-      DEFAULT_SETTINGS.showZoomWarning,
-    ),
-    defaultFormat: normalizeFormat(source.defaultFormat),
-    defaultScale: Math.round(
-      clamp(
-        Number(source.defaultScale) || CAPTURE.DEFAULT_SCALE,
-        CAPTURE.MIN_SCALE,
-        CAPTURE.MAX_SCALE,
-      ),
-    ),
-    defaultQuality: clamp(
-      Number(source.defaultQuality) || DEFAULT_SETTINGS.defaultQuality,
-      0.1,
-      1,
-    ),
-    scrollPad: Math.round(
-      clamp(Number(source.scrollPad) || DEFAULT_SETTINGS.scrollPad, 0, 1000),
-    ),
-    captureDelay: Math.round(
-      clamp(
-        Number(source.captureDelay) || DEFAULT_SETTINGS.captureDelay,
-        0,
-        5000,
-      ),
-    ),
-  };
-}
-
 export async function loadSettings(): Promise<WebShotSettings> {
   try {
-    const result: { settings?: Partial<WebShotSettings> } =
+    const result: { settings?: WebShotSettings } =
       await browser.storage.local.get('settings');
     if (result.settings != null) {
-      return normalizeSettings(result.settings);
+      return { ...DEFAULT_SETTINGS, ...result.settings };
     }
   } catch {
     // storage unavailable, use defaults
   }
-  return normalizeSettings(DEFAULT_SETTINGS);
+  return { ...DEFAULT_SETTINGS };
 }
 
 export async function saveSettings(settings: WebShotSettings): Promise<void> {
-  await browser.storage.local.set({ settings: normalizeSettings(settings) });
-}
-
-export interface LastCapturePrefs {
-  scale: number;
-  format: OutputFormat;
-}
-
-const LAST_PREFS_KEY = 'lastCapturePrefs';
-
-export async function loadLastCapturePrefs(): Promise<LastCapturePrefs | null> {
-  try {
-    const result: { lastCapturePrefs?: LastCapturePrefs } =
-      await browser.storage.local.get(LAST_PREFS_KEY);
-    return result.lastCapturePrefs ?? null;
-  } catch {
-    return null;
-  }
-}
-
-export async function saveLastCapturePrefs(
-  prefs: LastCapturePrefs,
-): Promise<void> {
-  await browser.storage.local.set({ lastCapturePrefs: prefs });
+  await browser.storage.local.set({ settings });
 }
