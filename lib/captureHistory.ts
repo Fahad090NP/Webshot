@@ -2,37 +2,58 @@
 
 import type { CaptureHistoryItem } from './types';
 
-export function generateThumbnail(
+export async function generateThumbnail(
   dataUri: string,
   targetWidth = 150,
 ): Promise<string> {
-  return new Promise<string>((resolve) => {
-    const img = new Image();
-    img.onload = (): void => {
-      const canvas = document.createElement('canvas');
-      const scale = targetWidth / img.width;
-      canvas.width = targetWidth;
-      canvas.height = Math.round(img.height * scale);
+  try {
+    const res = await fetch(dataUri);
+    const blob = await res.blob();
+    const imageBitmap = await createImageBitmap(blob);
+    const scale = targetWidth / imageBitmap.width;
+    const targetHeight = Math.round(imageBitmap.height * scale);
+
+    if (typeof OffscreenCanvas !== 'undefined') {
+      const canvas = new OffscreenCanvas(targetWidth, targetHeight);
       const ctx = canvas.getContext('2d');
       if (ctx != null) {
-        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-        resolve(canvas.toDataURL('image/jpeg', 0.6));
-      } else {
-        resolve(dataUri);
+        ctx.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight);
+        const outBlob = await canvas.convertToBlob({
+          type: 'image/jpeg',
+          quality: 0.6,
+        });
+        const buffer = await outBlob.arrayBuffer();
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+          const byte = bytes[i];
+          binary += String.fromCharCode(byte);
+        }
+        const base64 = btoa(binary);
+        return `data:image/jpeg;base64,${base64}`;
       }
-    };
-    img.onerror = (): void => {
-      resolve(dataUri);
-    };
-    img.src = dataUri;
-  });
+    } else if (typeof document !== 'undefined') {
+      const canvas = document.createElement('canvas');
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx != null) {
+        ctx.drawImage(imageBitmap, 0, 0, targetWidth, targetHeight);
+        return canvas.toDataURL('image/jpeg', 0.6);
+      }
+    }
+  } catch {
+    // fallback
+  }
+  return dataUri;
 }
 
 export async function loadHistory(): Promise<CaptureHistoryItem[]> {
   try {
     const result: { captureHistory?: CaptureHistoryItem[] } =
       await browser.storage.local.get('captureHistory');
-    if (result.captureHistory != null && Array.isArray(result.captureHistory)) {
+    if (result.captureHistory != null) {
       return result.captureHistory;
     }
   } catch {
