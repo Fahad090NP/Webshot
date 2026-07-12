@@ -109,7 +109,7 @@ function resetZoom(): void {
 }
 
 function blockInteractions(block: boolean): void {
-  if (currentSettings?.blockInteractions !== true) return;
+  if (block && currentSettings?.blockInteractions !== true) return;
   const styleId: string = 'ws-interaction-block';
   const existing: HTMLStyleElement | null = document.getElementById(
     styleId,
@@ -569,6 +569,8 @@ function waitForSelection(): Promise<{
 }
 
 function cleanup(): void {
+  blockInteractions(false);
+
   currentRequest = null;
   currentSettings = null;
   capturedImages = [];
@@ -584,6 +586,4 @@ function cleanup(): void {
     document.body.style.overflowY = originalBodyOverflowY;
   }
   window.scrollTo(originalX, originalY);
-
-  blockInteractions(false);
 }
