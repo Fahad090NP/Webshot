@@ -1,4 +1,4 @@
-// Background service worker coordinating captureVisibleTab actions, CDP debugger attachment, keyboard shortcuts, and context menus.
+// Background service worker coordinating captureVisibleTab actions, CDP debugger attachment, keyboard shortcuts, icon badge notifications, and context menus.
 
 import { getFilename } from '@/lib/captureEngine';
 import type { OutputFormat, DeviceProfile } from '@/lib/types';
@@ -54,8 +54,15 @@ async function captureCDP(
   maxHistoryItems = 50,
 ): Promise<{ success: boolean; filename?: string; error?: string }> {
   try {
+    await browser.action.setBadgeText({ text: '...' });
+    await browser.action.setBadgeBackgroundColor({ color: '#3b82f6' });
     await browser.debugger.attach({ tabId }, '1.3');
   } catch (error: unknown) {
+    await browser.action.setBadgeText({ text: '✕' });
+    await browser.action.setBadgeBackgroundColor({ color: '#ef4444' });
+    setTimeout((): void => {
+      browser.action.setBadgeText({ text: '' }).catch((): void => {});
+    }, 1500);
     return {
       success: false,
       error: `Failed to attach debugger: ${String(error)}`,
@@ -159,8 +166,19 @@ async function captureCDP(
       await sendCommand(tabId, 'Emulation.clearDeviceMetricsOverride');
     }
 
+    await browser.action.setBadgeText({ text: '✓' });
+    await browser.action.setBadgeBackgroundColor({ color: '#10b981' });
+    setTimeout((): void => {
+      browser.action.setBadgeText({ text: '' }).catch((): void => {});
+    }, 1500);
+
     return { success: true, filename };
   } catch (err: unknown) {
+    await browser.action.setBadgeText({ text: '✕' });
+    await browser.action.setBadgeBackgroundColor({ color: '#ef4444' });
+    setTimeout((): void => {
+      browser.action.setBadgeText({ text: '' }).catch((): void => {});
+    }, 1500);
     return { success: false, error: String(err) };
   } finally {
     try {
