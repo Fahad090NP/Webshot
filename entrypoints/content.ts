@@ -104,6 +104,11 @@ async function startCapture(request: CaptureRequest): Promise<void> {
   }
 }
 
+function applyZoom(): void {
+  if (currentRequest == null || currentRequest.scale <= 1) return;
+  document.body.style.zoom = String(currentRequest.scale);
+}
+
 function resetZoom(): void {
   document.body.style.zoom = originalZoom;
 }
@@ -169,8 +174,19 @@ async function captureFullPage(): Promise<void> {
   const dims: PageDimensions = getPageDimensions();
   totalWidth = dims.fullWidth;
   totalHeight = dims.fullHeight;
+
+  // Zoom to increase capture detail (viewport shrinks in CSS pixels)
+  applyZoom();
+
+  const zoomDims: PageDimensions = {
+    fullWidth: dims.fullWidth,
+    fullHeight: dims.fullHeight,
+    viewportWidth: window.innerWidth,
+    viewportHeight: window.innerHeight,
+    devicePixelRatio: dims.devicePixelRatio,
+  };
   scrollTiles = computeScrollGrid(
-    dims,
+    zoomDims,
     currentSettings?.scrollPad ?? CAPTURE.SCROLL_PAD,
   );
   captureOffset = { x: 0, y: 0 };
@@ -203,6 +219,8 @@ async function captureSelection(): Promise<void> {
   totalHeight = sel.height;
   captureOffset = { x: sel.x, y: sel.y };
 
+  applyZoom();
+
   hideScrollbars();
   blockInteractions(true);
 
@@ -228,13 +246,12 @@ async function captureSelection(): Promise<void> {
       return;
     }
 
-    const dims: PageDimensions = getPageDimensions();
     const clippedDims: PageDimensions = {
       fullWidth: sel.width,
       fullHeight: sel.height,
-      viewportWidth: dims.viewportWidth,
-      viewportHeight: dims.viewportHeight,
-      devicePixelRatio: dims.devicePixelRatio,
+      viewportWidth: viewportW,
+      viewportHeight: viewportH,
+      devicePixelRatio: window.devicePixelRatio,
     };
     scrollTiles = computeScrollGrid(
       clippedDims,
