@@ -39,6 +39,9 @@ function App(): React.ReactElement {
 
   // Capture History Gallery State
   const [historyItems, setHistoryItems] = useState<CaptureHistoryItem[]>([]);
+  const [previewItem, setPreviewItem] = useState<CaptureHistoryItem | null>(
+    null,
+  );
 
   useEffect((): void => {
     loadSettings()
@@ -146,18 +149,25 @@ function App(): React.ReactElement {
     [settings, updateSetting],
   );
 
-  const handleDeleteHistory = useCallback((id: string): void => {
-    deleteHistoryItem(id)
-      .then((updated) => {
-        setHistoryItems(updated);
-      })
-      .catch((): void => {});
-  }, []);
+  const handleDeleteHistory = useCallback(
+    (id: string): void => {
+      deleteHistoryItem(id)
+        .then((updated) => {
+          setHistoryItems(updated);
+          if (previewItem?.id === id) {
+            setPreviewItem(null);
+          }
+        })
+        .catch((): void => {});
+    },
+    [previewItem],
+  );
 
   const handleClearHistory = useCallback((): void => {
     clearHistory()
       .then(() => {
         setHistoryItems([]);
+        setPreviewItem(null);
       })
       .catch((): void => {});
   }, []);
@@ -220,6 +230,14 @@ function App(): React.ReactElement {
   }
 
   const formats: OutputFormat[] = ['png', 'jpeg', 'webp', 'svg', 'pdf'];
+
+  // Calculate statistics dashboard data
+  const totalCount = historyItems.length;
+  const totalSize = historyItems.reduce((acc, h) => acc + h.size, 0);
+  const formatStats = historyItems.reduce<Record<string, number>>((acc, h) => {
+    acc[h.format] = (acc[h.format] ?? 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <div className="container">
@@ -571,6 +589,27 @@ function App(): React.ReactElement {
               )}
             </div>
 
+            {historyItems.length > 0 && (
+              <div className="statsDashboard">
+                <div className="statsCard">
+                  <span className="statsVal">{totalCount}</span>
+                  <span className="statsLabel">Total Captures</span>
+                </div>
+                <div className="statsCard">
+                  <span className="statsVal">
+                    {Math.round(totalSize / 1024)} KB
+                  </span>
+                  <span className="statsLabel">Thumbnail Storage</span>
+                </div>
+                <div className="statsCard">
+                  <span className="statsVal">
+                    {formats.filter((f) => (formatStats[f] ?? 0) > 0).length}
+                  </span>
+                  <span className="statsLabel">Active Formats</span>
+                </div>
+              </div>
+            )}
+
             {historyItems.length === 0 ? (
               <p className="hintLabel">
                 Your capture history gallery is empty.
@@ -582,10 +621,19 @@ function App(): React.ReactElement {
                     <img
                       src={item.dataUri}
                       alt={item.title}
-                      className="historyThumb"
+                      className="historyThumb clickable"
+                      onClick={() => {
+                        setPreviewItem(item);
+                      }}
                     />
                     <div className="historyMeta">
-                      <strong className="historyTitle" title={item.title}>
+                      <strong
+                        className="historyTitle clickable"
+                        title={item.title}
+                        onClick={() => {
+                          setPreviewItem(item);
+                        }}
+                      >
                         {item.title}
                       </strong>
                       <a
@@ -618,6 +666,85 @@ function App(): React.ReactElement {
               </div>
             )}
           </section>
+
+          {/* Interactive Screenshot Preview Modal */}
+          {previewItem != null && (
+            <div
+              className="previewModalOverlay"
+              onClick={() => {
+                setPreviewItem(null);
+              }}
+            >
+              <div
+                className="previewModal"
+                onClick={(e) => {
+                  e.stopPropagation();
+                }}
+              >
+                <div className="modalHeader">
+                  <h3 className="modalTitle" title={previewItem.title}>
+                    {previewItem.title}
+                  </h3>
+                  <button
+                    className="modalCloseBtn"
+                    onClick={() => {
+                      setPreviewItem(null);
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="modalBody">
+                  <div className="modalImgContainer">
+                    <img
+                      src={previewItem.dataUri}
+                      alt={previewItem.title}
+                      className="modalImg"
+                    />
+                  </div>
+                  <div className="modalDetails">
+                    <div className="modalDetailItem">
+                      <strong>Source Link:</strong>
+                      <a
+                        href={previewItem.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="modalUrlLink"
+                      >
+                        {previewItem.url}
+                      </a>
+                    </div>
+                    <div className="modalDetailItem">
+                      <strong>Format:</strong>
+                      <span>{previewItem.format.toUpperCase()}</span>
+                    </div>
+                    <div className="modalDetailItem">
+                      <strong>Scale:</strong>
+                      <span>{previewItem.scale}x resolution</span>
+                    </div>
+                    <div className="modalDetailItem">
+                      <strong>Estimated File Size:</strong>
+                      <span>{Math.round(previewItem.size / 1024)} KB</span>
+                    </div>
+                    <div className="modalDetailItem">
+                      <strong>Capture Timestamp:</strong>
+                      <span>
+                        {new Date(previewItem.timestamp).toLocaleString()}
+                      </span>
+                    </div>
+                    <button
+                      className="modalDeleteBtn"
+                      onClick={() => {
+                        handleDeleteHistory(previewItem.id);
+                      }}
+                    >
+                      Delete Capture Log
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
