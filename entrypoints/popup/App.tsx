@@ -17,6 +17,110 @@ import './App.css';
 
 type CaptureState = 'ready' | 'capturing' | 'done' | 'error';
 
+// Custom Inline SVG Icons (Zero-dependency & lightweight)
+function SettingsIcon(): React.ReactElement {
+  return (
+    <svg
+      className="icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.1a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+function FullPageIcon(): React.ReactElement {
+  return (
+    <svg
+      className="icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <line x1="3" y1="9" x2="21" y2="9" />
+      <line x1="3" y1="15" x2="21" y2="15" />
+    </svg>
+  );
+}
+
+function ViewportIcon(): React.ReactElement {
+  return (
+    <svg
+      className="icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <rect x="2" y="3" width="20" height="14" rx="2" />
+      <line x1="8" y1="21" x2="16" y2="21" />
+      <line x1="12" y1="17" x2="12" y2="21" />
+    </svg>
+  );
+}
+
+function SelectionIcon(): React.ReactElement {
+  return (
+    <svg
+      className="icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M4 3h2M10 3h4M18 3h2a2 2 0 0 1 2 2v2M22 11v2M22 17v2a2 2 0 0 1-2 2h-2M14 21h-4M6 21H4a2 2 0 0 1-2-2v-2M2 13v-2M2 7V5a2 2 0 0 1 2-2" />
+      <rect x="7" y="7" width="10" height="10" rx="1" />
+    </svg>
+  );
+}
+
+function StitchIcon(): React.ReactElement {
+  return (
+    <svg
+      className="icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" />
+    </svg>
+  );
+}
+
+function CDPIcon(): React.ReactElement {
+  return (
+    <svg
+      className="icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="m8 9 3 3-3 3M13 15h3" />
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+    </svg>
+  );
+}
+
 function renderStatus(
   state: CaptureState,
   error: string,
@@ -68,8 +172,6 @@ function App(): React.ReactElement {
         setSettings(s);
         setFormat(s.defaultFormat);
         setScale(s.defaultScale);
-
-        // If a device profile is emulated, selection mode is invalid
         if (s.activeDeviceId !== 'current') {
           setMode('fullPage');
         }
@@ -114,8 +216,6 @@ function App(): React.ReactElement {
         }
 
         const tabId = tabList[0].id;
-
-        // Route between CDP Engine or Classic compositing engine
         const isCDP =
           settings.activeEngine === 'cdp' ||
           settings.activeDeviceId !== 'current';
@@ -164,7 +264,6 @@ function App(): React.ReactElement {
               setState('error');
             });
         } else {
-          // Classic Stitching Engine
           const listener: (message: unknown) => void = (
             message: unknown,
           ): void => {
@@ -243,136 +342,189 @@ function App(): React.ReactElement {
   const isEmulationActive = settings.activeDeviceId !== 'current';
 
   return (
-    <div className="app">
+    <div className="app animated">
       <div className="header">
-        <h1 className="title">Webshot</h1>
+        <div className="brand">
+          <svg
+            className="logoIcon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
+            <circle cx="12" cy="13" r="4" />
+          </svg>
+          <h1 className="title">Webshot</h1>
+        </div>
         <button
           className="settingsBtn"
           onClick={handleOpenSettings}
           title="Settings"
         >
-          ⚙️
+          <SettingsIcon />
         </button>
       </div>
 
-      <label className="label">Capture Engine</label>
-      <div className="engineGroup">
-        <button
-          className={`engineBtn ${settings.activeEngine === 'classic' && !isEmulationActive ? 'active' : ''}`}
-          onClick={(): void => {
-            updateEngineSettings({
-              activeEngine: 'classic',
-              activeDeviceId: 'current',
-            });
-          }}
-          disabled={state === 'capturing'}
-        >
-          Stitched (Classic)
-        </button>
-        <button
-          className={`engineBtn ${settings.activeEngine === 'cdp' || isEmulationActive ? 'active' : ''}`}
-          onClick={(): void => {
-            updateEngineSettings({ activeEngine: 'cdp' });
-          }}
-          disabled={state === 'capturing'}
-        >
-          Debugger (CDP)
-        </button>
+      <div className="controlGroup">
+        <label className="label">Capture Engine</label>
+        <div className="engineGroup">
+          <button
+            className={`engineBtn ${settings.activeEngine === 'classic' && !isEmulationActive ? 'active' : ''}`}
+            onClick={(): void => {
+              updateEngineSettings({
+                activeEngine: 'classic',
+                activeDeviceId: 'current',
+              });
+            }}
+            disabled={state === 'capturing'}
+          >
+            <StitchIcon />
+            <span>Stitch (Classic)</span>
+          </button>
+          <button
+            className={`engineBtn ${settings.activeEngine === 'cdp' || isEmulationActive ? 'active' : ''}`}
+            onClick={(): void => {
+              updateEngineSettings({ activeEngine: 'cdp' });
+            }}
+            disabled={state === 'capturing'}
+          >
+            <CDPIcon />
+            <span>Debugger (CDP)</span>
+          </button>
+        </div>
       </div>
 
-      <label className="label">Device Profile</label>
-      <select
-        className="select"
-        value={settings.activeDeviceId}
-        onChange={(e: React.ChangeEvent<HTMLSelectElement>): void => {
-          const val = e.target.value;
-          updateEngineSettings({
-            activeDeviceId: val,
-            // Enforce cdp if a device profile is selected
-            activeEngine: val !== 'current' ? 'cdp' : settings.activeEngine,
-          });
-          if (val !== 'current' && mode === 'selection') {
-            setMode('fullPage');
-          }
-        }}
-        disabled={state === 'capturing'}
-      >
-        <option value="current">Current Tab (No Emulation)</option>
-        {deviceList.map((d) => (
-          <option key={d.id} value={d.id}>
-            {d.name} ({d.width}x{d.height})
-          </option>
-        ))}
-      </select>
-
-      <label className="label">Capture Mode</label>
-      <div className="modeGroup">
-        {modes.map((m: CaptureMode): React.ReactElement => {
-          const isDisabled = isEmulationActive && m === 'selection';
-          return (
-            <button
-              key={m}
-              className={`modeBtn ${mode === m ? 'active' : ''}`}
-              onClick={(): void => {
-                setMode(m);
-              }}
-              disabled={state === 'capturing' || isDisabled}
-              title={
-                isDisabled
-                  ? 'Selection is disabled during emulation'
-                  : undefined
+      <div className="controlGroup">
+        <label className="label">Device Profile</label>
+        <div className="selectContainer">
+          <select
+            className="select"
+            value={settings.activeDeviceId}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>): void => {
+              const val = e.target.value;
+              updateEngineSettings({
+                activeDeviceId: val,
+                activeEngine: val !== 'current' ? 'cdp' : settings.activeEngine,
+              });
+              if (val !== 'current' && mode === 'selection') {
+                setMode('fullPage');
               }
-            >
-              {m === 'fullPage'
-                ? 'Full Page'
-                : m === 'viewport'
-                  ? 'Viewport'
-                  : 'Selection'}
-            </button>
-          );
-        })}
+            }}
+            disabled={state === 'capturing'}
+          >
+            <option value="current">Current Tab (No Emulation)</option>
+            {deviceList.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.name} ({d.width}x{d.height})
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      <label className="label">Format</label>
-      <select
-        className="select"
-        value={format}
-        onChange={(e: React.ChangeEvent<HTMLSelectElement>): void => {
-          setFormat(e.target.value as OutputFormat);
-        }}
-        disabled={state === 'capturing'}
-      >
-        {(['png', 'jpeg', 'webp', 'svg', 'pdf'] as OutputFormat[]).map(
-          (f: OutputFormat): React.ReactElement => (
-            <option key={f} value={f}>
-              {f.toUpperCase()}
-            </option>
-          ),
-        )}
-      </select>
+      <div className="controlGroup">
+        <label className="label">Capture Mode</label>
+        <div className="modeGroup">
+          {modes.map((m: CaptureMode): React.ReactElement => {
+            const isDisabled = isEmulationActive && m === 'selection';
+            return (
+              <button
+                key={m}
+                className={`modeBtn ${mode === m ? 'active' : ''}`}
+                onClick={(): void => {
+                  setMode(m);
+                }}
+                disabled={state === 'capturing' || isDisabled}
+                title={
+                  isDisabled
+                    ? 'Selection is disabled during emulation'
+                    : undefined
+                }
+              >
+                {m === 'fullPage' ? (
+                  <>
+                    <FullPageIcon />
+                    <span>Full Page</span>
+                  </>
+                ) : m === 'viewport' ? (
+                  <>
+                    <ViewportIcon />
+                    <span>Viewport</span>
+                  </>
+                ) : (
+                  <>
+                    <SelectionIcon />
+                    <span>Selection</span>
+                  </>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </div>
 
-      <label className="label">Resolution: {scale}x</label>
-      <input
-        type="range"
-        min={CAPTURE.MIN_SCALE}
-        max={CAPTURE.MAX_SCALE}
-        value={scale}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>): void => {
-          setScale(Number(e.target.value));
-        }}
-        disabled={state === 'capturing'}
-        className="slider"
-      />
-      <div className="scaleLabels">
-        <span>1x</span>
-        <span>10x</span>
+      <div className="controlGroup flexRow">
+        <div className="flexCol">
+          <label className="label">Format</label>
+          <select
+            className="select compact"
+            value={format}
+            onChange={(e: React.ChangeEvent<HTMLSelectElement>): void => {
+              setFormat(e.target.value as OutputFormat);
+            }}
+            disabled={state === 'capturing'}
+          >
+            {(['png', 'jpeg', 'webp', 'svg', 'pdf'] as OutputFormat[]).map(
+              (f: OutputFormat): React.ReactElement => (
+                <option key={f} value={f}>
+                  {f.toUpperCase()}
+                </option>
+              ),
+            )}
+          </select>
+        </div>
+
+        <div className="flexCol flexGrow">
+          <label className="label">Resolution: {scale}x</label>
+          <div className="sliderContainer">
+            <input
+              type="range"
+              min={CAPTURE.MIN_SCALE}
+              max={CAPTURE.MAX_SCALE}
+              value={scale}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>): void => {
+                setScale(Number(e.target.value));
+              }}
+              disabled={state === 'capturing'}
+              className="slider"
+            />
+            <div className="scaleLabels">
+              <span>1x</span>
+              <span>10x</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       {scale > 1 && state === 'ready' && settings.showZoomWarning && (
         <div className="warning">
-          {settings.zoomCapture && !isEmulationActive
-            ? 'Page will be zoomed for high-res capture. Page may reflow.'
-            : 'Output will be scaled up from native capture.'}
+          <svg
+            className="warnIcon"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
+            <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <span>
+            {settings.zoomCapture && !isEmulationActive
+              ? 'Page will zoom for high-res. Layout reflows may occur.'
+              : 'Output will scale up from native.'}
+          </span>
         </div>
       )}
 
