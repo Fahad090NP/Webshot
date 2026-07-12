@@ -1,5 +1,5 @@
 .container {
-  max-width: 560px;
+  max-width: 680px;
   margin: 40px auto;
   padding: 30px;
   background: var(--bg-card);
@@ -11,11 +11,43 @@
 .pageTitle {
   font-size: 26px;
   font-weight: 700;
-  margin: 0 0 24px;
+  margin: 0 0 20px;
   background: linear-gradient(135deg, hsl(217, 91%, 65%), hsl(260, 80%, 70%));
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   letter-spacing: -0.5px;
+}
+
+/* Tabs Selectors */
+.tabsGroup {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--border-glass);
+  padding-bottom: 8px;
+}
+
+.tabBtn {
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: all 0.2s;
+}
+
+.tabBtn:hover {
+  color: var(--text-primary);
+  background: var(--bg-field);
+}
+
+.tabBtn.active {
+  color: var(--text-primary);
+  background: var(--bg-primary);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
 }
 
 .section {
@@ -92,6 +124,15 @@
   box-shadow: 0 0 0 2px var(--border-focus);
 }
 
+.textInput {
+  min-width: 200px;
+  flex: 1;
+}
+
+.fullWidth {
+  width: 100%;
+}
+
 input[type='checkbox'].fieldInput {
   min-width: auto;
   width: 18px;
@@ -141,6 +182,272 @@ select.fieldInput {
   opacity: 0.7;
   cursor: progress;
   box-shadow: none;
+}
+
+/* Device Manager Form Layouts */
+.addDeviceForm {
+  background: var(--bg-field);
+  padding: 16px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-glass);
+  margin-bottom: 24px;
+}
+
+.formRow {
+  margin-bottom: 12px;
+}
+
+.formRow.split {
+  display: flex;
+  gap: 12px;
+}
+
+.formRow.inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0;
+  margin-top: 16px;
+}
+
+.formLabel {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.addBtn,
+.exportBtn,
+.clearBtn {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: none;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.addBtn:hover,
+.exportBtn:hover,
+.clearBtn:hover {
+  background: hsl(217, 91%, 65%);
+  transform: translateY(-1px);
+}
+
+.deviceList {
+  margin-top: 20px;
+}
+
+.subTitleLabel {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0 0 12px;
+  color: var(--text-primary);
+}
+
+.hintLabel {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.hintLabel.margin {
+  margin-bottom: 16px;
+}
+
+.deviceCard {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--bg-field);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+  margin-bottom: 8px;
+}
+
+.deviceInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.deviceName {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.deviceMetrics {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.deleteCardBtn {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-error);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.deleteCardBtn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+/* Preset Cards Layouts */
+.devicePresetGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px;
+}
+
+.presetCard {
+  background: var(--bg-field);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.presetCard strong {
+  color: var(--text-primary);
+}
+
+.presetCard span {
+  color: var(--text-muted);
+}
+
+.presetCard .tag {
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--bg-primary);
+  margin-top: 2px;
+}
+
+/* History layout styles */
+.historyHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.clearBtn {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-error);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.clearBtn:hover {
+  background: rgba(239, 68, 68, 0.2);
+}
+
+.historyGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.historyCard {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--bg-field);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  padding: 12px;
+}
+
+.historyThumb {
+  width: 90px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-glass);
+  background: #000;
+}
+
+.historyMeta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  overflow: hidden;
+}
+
+.historyTitle {
+  font-size: 13px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.historyUrl {
+  font-size: 11px;
+  color: var(--bg-primary);
+  text-decoration: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.historyUrl:hover {
+  text-decoration: underline;
+}
+
+.historyDetails {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.historyDate {
+  font-size: 9px;
+  color: var(--text-muted);
+}
+
+/* Backup and Restore utility triggers */
+.backupActions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.importField {
+  background: var(--bg-field);
+  border: 1px dashed var(--border-glass);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  text-align: center;
+}
+
+.importLabel {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.fileInput {
+  display: none;
 }
 
 .errorMsg {
