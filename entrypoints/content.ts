@@ -141,8 +141,7 @@ function hideScrollbars(): void {
   originalOverflow = document.documentElement.style.overflow;
   originalBodyOverflowY = document.body.style.overflowY;
   document.documentElement.style.overflow = 'hidden';
-  document.body.style.overflow = 'hidden';
-  document.body.style.overflowY = 'hidden';
+  document.body.style.overflowY = 'visible';
 }
 
 async function captureViewport(): Promise<void> {
