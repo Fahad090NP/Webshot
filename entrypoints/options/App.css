@@ -359,6 +359,38 @@ select.fieldInput {
   background: rgba(239, 68, 68, 0.2);
 }
 
+.statsDashboard {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+
+.statsCard {
+  background: var(--bg-field);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.statsVal {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--bg-primary);
+}
+
+.statsLabel {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
 .historyGrid {
   display: flex;
   flex-direction: column;
@@ -421,6 +453,172 @@ select.fieldInput {
 .historyDate {
   font-size: 9px;
   color: var(--text-muted);
+}
+
+/* Interactive Preview Modal overlays */
+.previewModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+
+.previewModal {
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-lg);
+  width: 90%;
+  max-width: 800px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-glass);
+}
+
+.modalTitle {
+  font-size: 16px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80%;
+}
+
+.modalCloseBtn {
+  background: transparent;
+  border: none;
+  font-size: 16px;
+  cursor: pointer;
+  color: var(--text-muted);
+  transition: color 0.2s;
+  padding: 4px;
+}
+
+.modalCloseBtn:hover {
+  color: var(--text-primary);
+}
+
+.modalBody {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+@media (max-width: 767px) {
+  .modalBody {
+    flex-direction: column;
+  }
+}
+
+.modalImgContainer {
+  flex: 1.5;
+  background: #0d0d0d;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  min-height: 300px;
+}
+
+.modalImg {
+  max-width: 100%;
+  max-height: 50vh;
+  object-fit: contain;
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+.modalDetails {
+  flex: 1;
+  padding: 20px;
+  border-left: 1px solid var(--border-glass);
+  background: var(--bg-field);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+}
+
+@media (max-width: 767px) {
+  .modalDetails {
+    border-left: none;
+    border-top: 1px solid var(--border-glass);
+  }
+}
+
+.modalDetailItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.modalDetailItem strong {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.modalDetailItem span,
+.modalUrlLink {
+  font-size: 13px;
+  color: var(--text-primary);
+  word-break: break-all;
+}
+
+.modalUrlLink {
+  color: var(--bg-primary);
+  text-decoration: none;
+}
+
+.modalUrlLink:hover {
+  text-decoration: underline;
+}
+
+.modalDeleteBtn {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-error);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  padding: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  margin-top: auto;
+  transition: all 0.2s;
+}
+
+.modalDeleteBtn:hover {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.clickable {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.clickable:hover {
+  opacity: 0.85;
 }
 
 /* Backup and Restore utility triggers */
