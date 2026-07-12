@@ -184,6 +184,75 @@ select.fieldInput {
   box-shadow: none;
 }
 
+/* Shortcuts guidelines cards */
+.shortcutsGrid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.shortcutCard {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: var(--bg-field);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  padding: 10px 14px;
+}
+
+.shortcutKey {
+  background: var(--bg-card);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  font-family: monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--bg-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.shortcutDesc {
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+/* Action button configurations */
+.generalActions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.generalActions .saveBtn {
+  flex: 2;
+  margin-top: 0;
+}
+
+.resetBtn {
+  flex: 1;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius-md);
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--color-error);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.resetBtn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+  transform: translateY(-1px);
+}
+
+.resetBtn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
 /* Device Manager Form Layouts */
 .addDeviceForm {
   background: var(--bg-field);
