@@ -1,8 +1,9 @@
-// Background service worker coordinating captureVisibleTab actions, CDP debugger attachment, and context menus.
+// Background service worker coordinating captureVisibleTab actions, CDP debugger attachment, keyboard shortcuts, and context menus.
 
 import { getFilename } from '@/lib/captureEngine';
 import type { OutputFormat, DeviceProfile } from '@/lib/types';
 import { saveHistoryItem } from '@/lib/captureHistory';
+import { loadSettings } from '@/lib/captureConfig';
 
 type DebugCommandResult = Record<string, unknown>;
 
@@ -185,6 +186,59 @@ async function handleCaptureVisible(
   }
 }
 
+async function handleKeyboardCommand(command: string): Promise<void> {
+  try {
+    const settings = await loadSettings();
+    const tabs = await browser.tabs.query({
+      active: true,
+      currentWindow: true,
+    });
+    if (tabs.length === 0 || tabs[0].id == null) return;
+    const tabId = tabs[0].id;
+    const mode = command === 'capture_full_page' ? 'fullPage' : 'viewport';
+
+    const isCDP =
+      settings.activeEngine === 'cdp' || settings.activeDeviceId !== 'current';
+
+    if (isCDP) {
+      let selectedDevice: DeviceProfile | null = null;
+      if (settings.activeDeviceId !== 'current') {
+        const presets = (await import('@/lib/captureConfig')).PRESET_DEVICES;
+        selectedDevice =
+          presets.find((d) => d.id === settings.activeDeviceId) ??
+          settings.customDevices.find(
+            (d) => d.id === settings.activeDeviceId,
+          ) ??
+          null;
+      }
+      await captureCDP(
+        tabId,
+        mode,
+        settings.defaultScale,
+        settings.defaultQuality,
+        settings.defaultFormat,
+        settings.filenameTemplate,
+        selectedDevice,
+        settings.captureDelay,
+        settings.maxHistoryItems,
+      );
+    } else {
+      const request = {
+        type: 'startCapture',
+        data: {
+          mode,
+          format: settings.defaultFormat,
+          scale: settings.defaultScale,
+          quality: settings.defaultQuality,
+        },
+      };
+      await browser.tabs.sendMessage(tabId, request);
+    }
+  } catch {
+    // suppress command trigger errors
+  }
+}
+
 browser.runtime.onMessage.addListener(
   (
     message: unknown,
@@ -249,4 +303,8 @@ export default defineBackground((): void => {
   });
 
   browser.contextMenus.onClicked.addListener(handleContextClick);
+
+  browser.commands.onCommand.addListener((command: string): void => {
+    handleKeyboardCommand(command).catch((): void => {});
+  });
 });
