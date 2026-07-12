@@ -34,12 +34,45 @@ export interface PageDimensions {
   devicePixelRatio: number;
 }
 
+export interface CaptureProgress {
+  complete: number;
+}
+
+export interface DeviceProfile {
+  id: string;
+  name: string;
+  width: number;
+  height: number;
+  mobile: boolean;
+  userAgent: string;
+  category: 'mobile' | 'tablet' | 'desktop';
+}
+
+export interface CaptureHistoryItem {
+  id: string;
+  title: string;
+  url: string;
+  timestamp: number;
+  format: OutputFormat;
+  scale: number;
+  dataUri: string;
+  size: number;
+}
+
 export interface WebShotSettings {
+  zoomCapture: boolean;
   blockInteractions: boolean;
   showZoomWarning: boolean;
   defaultFormat: OutputFormat;
   defaultScale: number;
   defaultQuality: number;
+  autoDownload: boolean;
   scrollPad: number;
   captureDelay: number;
+  customDevices: DeviceProfile[];
+  activeEngine: 'classic' | 'cdp';
+  activeDeviceId: string;
+  pdfMultiPage: boolean;
+  filenameTemplate: string;
+  maxHistoryItems: number;
 }
