@@ -18,5 +18,19 @@ export default defineConfig({
     action: {
       default_title: 'Capture page with Webshot',
     },
+    commands: {
+      capture_full_page: {
+        suggested_key: {
+          default: 'Ctrl+Shift+Y',
+        },
+        description: 'Capture full page screenshot with Webshot',
+      },
+      capture_viewport: {
+        suggested_key: {
+          default: 'Ctrl+Shift+U',
+        },
+        description: 'Capture viewport screenshot with Webshot',
+      },
+    },
   },
 });
