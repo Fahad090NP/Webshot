@@ -157,16 +157,57 @@ export function canvasToBlob(
   );
 }
 
-export function getFilename(url: string, format: OutputFormat): string {
+export function getFilename(
+  url: string,
+  format: OutputFormat,
+  title: string,
+  template: string,
+  deviceLabel?: string,
+): string {
   const ext: string = FORMAT_EXTENSIONS[format] ?? 'png';
   const path: string = url.split('?')[0]?.split('#')[0] ?? '';
-  const name: string = path
+  const domain: string = path
     .replace(/^https?:\/\//, '')
-    .replace(/[^A-Za-z0-9]+/g, '-')
+    .split('/')[0]
+    .replace(/[^A-Za-z0-9.-]+/g, '-')
+    .replace(/^-+/, '')
+    .replace(/-+$/, '');
+
+  const dateObj = new Date();
+  const year = dateObj.getFullYear();
+  const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+  const day = String(dateObj.getDate()).padStart(2, '0');
+  const dateStr = `${year}-${month}-${day}`;
+
+  const hour = String(dateObj.getHours()).padStart(2, '0');
+  const min = String(dateObj.getMinutes()).padStart(2, '0');
+  const sec = String(dateObj.getSeconds()).padStart(2, '0');
+  const timeStr = `${hour}-${min}-${sec}`;
+
+  const sanitizedTitle = title
+    .replace(/[^A-Za-z0-9_-]+/g, '-')
     .replace(/-+/g, '-')
-    .replace(/^_+-/, '')
-    .replace(/_+-$/, '');
-  return `webshot-${name || 'page'}-${Date.now()}.${ext}`;
+    .replace(/^-+/, '')
+    .replace(/-+$/, '');
+
+  const device =
+    deviceLabel != null
+      ? deviceLabel.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/-+/g, '-')
+      : 'default';
+
+  let name = template
+    .replace(/{title}/g, sanitizedTitle || 'page')
+    .replace(/{domain}/g, domain || 'local')
+    .replace(/{date}/g, dateStr)
+    .replace(/{time}/g, timeStr)
+    .replace(/{format}/g, format)
+    .replace(/{device}/g, device);
+
+  if (name === '') {
+    name = `webshot-${sanitizedTitle || 'page'}-${dateStr}`;
+  }
+
+  return `${name}.${ext}`;
 }
 
 export async function renderToCanvas(
@@ -208,12 +249,19 @@ export async function compositeAndExport(
   format: OutputFormat,
   scale: number,
   quality?: number,
+  pdfMultiPage?: boolean,
 ): Promise<Blob> {
   if (format === 'svg') {
     return exportAsSvg(imageDataList, totalWidth, totalHeight, scale);
   }
   if (format === 'pdf') {
-    return exportAsPdf(imageDataList, totalWidth, totalHeight, scale);
+    return exportAsPdf(
+      imageDataList,
+      totalWidth,
+      totalHeight,
+      scale,
+      pdfMultiPage ?? false,
+    );
   }
   const canvas: HTMLCanvasElement = await renderToCanvas(
     imageDataList,
@@ -252,24 +300,73 @@ async function exportAsPdf(
   totalWidth: number,
   totalHeight: number,
   scale: number,
+  pdfMultiPage: boolean,
 ): Promise<Blob> {
   const scaledW: number = Math.round(totalWidth * scale);
   const scaledH: number = Math.round(totalHeight * scale);
 
   const { jsPDF: JsPdfClass } = await import('jspdf');
-  const doc: InstanceType<typeof JsPdfClass> = new JsPdfClass({
-    orientation: scaledW > scaledH ? 'landscape' : 'portrait',
-    unit: 'px',
-    format: [scaledW, scaledH] as [number, number],
-  });
+
   const canvas: HTMLCanvasElement = await renderToCanvas(
     imageDataList,
     totalWidth,
     totalHeight,
     scale,
   );
-  const dataUri: string = canvas.toDataURL('image/png');
-  doc.addImage(dataUri, 'PNG', 0, 0, scaledW, scaledH);
+
+  if (!pdfMultiPage) {
+    const doc: InstanceType<typeof JsPdfClass> = new JsPdfClass({
+      orientation: scaledW > scaledH ? 'landscape' : 'portrait',
+      unit: 'px',
+      format: [scaledW, scaledH] as [number, number],
+    });
+    const dataUri: string = canvas.toDataURL('image/png');
+    doc.addImage(dataUri, 'PNG', 0, 0, scaledW, scaledH);
+    const pdfOutput: ArrayBuffer = doc.output('arraybuffer');
+    return new Blob([pdfOutput], { type: 'application/pdf' });
+  }
+
+  const pageH = Math.round(scaledW * 1.414);
+  const doc: InstanceType<typeof JsPdfClass> = new JsPdfClass({
+    orientation: 'portrait',
+    unit: 'px',
+    format: [scaledW, pageH] as [number, number],
+  });
+
+  let remainingH = scaledH;
+  let sourceY = 0;
+  let isFirstPage = true;
+
+  while (remainingH > 0) {
+    if (!isFirstPage) {
+      doc.addPage([scaledW, pageH] as [number, number], 'portrait');
+    }
+    isFirstPage = false;
+
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = scaledW;
+    tempCanvas.height = Math.min(pageH, remainingH);
+    const tempCtx = tempCanvas.getContext('2d');
+    if (tempCtx != null) {
+      tempCtx.drawImage(
+        canvas,
+        0,
+        sourceY,
+        scaledW,
+        tempCanvas.height,
+        0,
+        0,
+        scaledW,
+        tempCanvas.height,
+      );
+    }
+    const segmentDataUri = tempCanvas.toDataURL('image/png');
+    doc.addImage(segmentDataUri, 'PNG', 0, 0, scaledW, tempCanvas.height);
+
+    remainingH -= pageH;
+    sourceY += pageH;
+  }
+
   const pdfOutput: ArrayBuffer = doc.output('arraybuffer');
   return new Blob([pdfOutput], { type: 'application/pdf' });
 }
