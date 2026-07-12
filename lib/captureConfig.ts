@@ -17,7 +17,6 @@ export const CAPTURE = {
 } as const;
 
 export const DEFAULT_SETTINGS: WebShotSettings = {
-  zoomCapture: true,
   blockInteractions: true,
   showZoomWarning: true,
   defaultFormat: 'png',
@@ -58,10 +57,6 @@ function normalizeSettings(
 ): WebShotSettings {
   const source = raw ?? {};
   return {
-    zoomCapture: normalizeBoolean(
-      source.zoomCapture,
-      DEFAULT_SETTINGS.zoomCapture,
-    ),
     blockInteractions: normalizeBoolean(
       source.blockInteractions,
       DEFAULT_SETTINGS.blockInteractions,

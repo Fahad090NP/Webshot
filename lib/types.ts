@@ -35,7 +35,6 @@ export interface PageDimensions {
 }
 
 export interface WebShotSettings {
-  zoomCapture: boolean;
   blockInteractions: boolean;
   showZoomWarning: boolean;
   defaultFormat: OutputFormat;

@@ -166,26 +166,9 @@ function App(): React.ReactElement {
 
         <label className="field fieldToggle">
           <span className="fieldLabel">
-            Zoom-based capture
+            Show scaling warning
             <span className="fieldHint">
-              When enabled, browser zoom is used for &gt;1x resolution. Page may
-              reflow.
-            </span>
-          </span>
-          <input
-            type="checkbox"
-            checked={settings.zoomCapture}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>): void => {
-              updateSetting('zoomCapture', e.target.checked);
-            }}
-          />
-        </label>
-
-        <label className="field fieldToggle">
-          <span className="fieldLabel">
-            Show zoom warning
-            <span className="fieldHint">
-              Shows a warning when capturing above 1x with zoom enabled
+              Shows a warning when capturing above 1x resolution
             </span>
           </span>
           <input

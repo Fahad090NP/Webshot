@@ -243,9 +243,7 @@ function App(): React.ReactElement {
 
       {scale > 1 && state === 'ready' && settings?.showZoomWarning === true && (
         <div className="warning">
-          {settings.zoomCapture
-            ? 'Page will be zoomed for high-res capture. Page may reflow.'
-            : 'Output will be scaled up from native capture.'}
+          Output will be scaled up from native capture.
         </div>
       )}
 
