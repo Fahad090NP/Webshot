@@ -1,14 +1,18 @@
-// Popup interface for Webshot extension: handles mode selection, resolution scale, export format, and orchestrates content script messaging.
+// Popup interface for Webshot extension: handles mode selection, emulated device profiles, resolution scale, and orchestrates classic/CDP capture engine messaging.
 
 import { useState, useCallback, useEffect } from 'react';
 import {
   CAPTURE,
   loadSettings,
-  loadLastCapturePrefs,
-  saveLastCapturePrefs,
-  type LastCapturePrefs,
+  saveSettings,
+  PRESET_DEVICES,
 } from '@/lib/captureConfig';
-import type { CaptureMode, OutputFormat, WebShotSettings } from '@/lib/types';
+import type {
+  CaptureMode,
+  OutputFormat,
+  WebShotSettings,
+  DeviceProfile,
+} from '@/lib/types';
 import './App.css';
 
 type CaptureState = 'ready' | 'capturing' | 'done' | 'error';
@@ -62,13 +66,12 @@ function App(): React.ReactElement {
     loadSettings()
       .then((s: WebShotSettings): void => {
         setSettings(s);
-      })
-      .catch((): void => {});
-    loadLastCapturePrefs()
-      .then((prefs: LastCapturePrefs | null): void => {
-        if (prefs != null) {
-          setFormat(prefs.format);
-          setScale(prefs.scale);
+        setFormat(s.defaultFormat);
+        setScale(s.defaultScale);
+
+        // If a device profile is emulated, selection mode is invalid
+        if (s.activeDeviceId !== 'current') {
+          setMode('fullPage');
         }
       })
       .catch((): void => {});
@@ -76,7 +79,24 @@ function App(): React.ReactElement {
     return (): void => {};
   }, []);
 
+  const handleOpenSettings = useCallback((): void => {
+    browser.runtime.openOptionsPage().catch((): void => {});
+  }, []);
+
+  const updateEngineSettings = useCallback(
+    (updates: Partial<WebShotSettings>): void => {
+      setSettings((prev) => {
+        if (prev == null) return null;
+        const updated = { ...prev, ...updates };
+        saveSettings(updated).catch((): void => {});
+        return updated;
+      });
+    },
+    [],
+  );
+
   const handleCapture = useCallback((): void => {
+    if (settings == null) return;
     let completed = false;
 
     setState('capturing');
@@ -93,85 +113,134 @@ function App(): React.ReactElement {
           return;
         }
 
-        const listener: (message: unknown) => void = (
-          message: unknown,
-        ): void => {
-          const msg: Record<string, unknown> = message as Record<
-            string,
-            unknown
-          >;
-          const msgType: string | undefined = msg.type as string | undefined;
+        const tabId = tabList[0].id;
 
-          if (msgType === 'captureProgress') {
-            const d: { complete: number } = msg.data as {
-              complete: number;
-            };
-            setProgress(d.complete);
-          } else if (msgType === 'captureBlob') {
-            completed = true;
-            setState('done');
-            browser.runtime.onMessage.removeListener(listener);
-            setTimeout((): void => {
-              window.close();
-            }, 1500);
-          } else if (msgType === 'captureCancelled') {
-            setState('ready');
-            browser.runtime.onMessage.removeListener(listener);
-          } else if (msgType === 'captureError') {
-            completed = true;
-            const detail: string | undefined = (
-              msg.data as { message?: string } | undefined
-            )?.message;
-            setError(detail ?? 'Capture failed');
-            setState('error');
-            browser.runtime.onMessage.removeListener(listener);
+        // Route between CDP Engine or Classic compositing engine
+        const isCDP =
+          settings.activeEngine === 'cdp' ||
+          settings.activeDeviceId !== 'current';
+
+        if (isCDP) {
+          let selectedDevice: DeviceProfile | null = null;
+          if (settings.activeDeviceId !== 'current') {
+            selectedDevice =
+              PRESET_DEVICES.find((d) => d.id === settings.activeDeviceId) ??
+              settings.customDevices.find(
+                (d) => d.id === settings.activeDeviceId,
+              ) ??
+              null;
           }
-        };
 
-        browser.runtime.onMessage.addListener(listener);
-
-        const request: Record<string, unknown> = {
-          type: 'startCapture',
-          data: {
-            mode,
-            format,
-            scale,
-            quality: settings?.defaultQuality ?? CAPTURE.DEFAULT_QUALITY,
-          },
-        };
-
-        saveLastCapturePrefs({ scale, format }).catch((): void => {});
-
-        browser.tabs
-          .sendMessage(tabList[0].id, request)
-          .then((): void => {
-            setTimeout((): void => {
-              if (!completed) {
-                browser.runtime.onMessage.removeListener(listener);
-                setError('Capture timed out');
+          browser.runtime
+            .sendMessage({
+              type: 'startCDPCapture',
+              data: {
+                tabId,
+                mode: mode === 'fullPage' ? 'fullPage' : 'viewport',
+                scale,
+                quality: CAPTURE.DEFAULT_QUALITY,
+                format,
+                filenameTemplate: settings.filenameTemplate,
+                device: selectedDevice,
+                delayMs: settings.captureDelay,
+                maxHistoryItems: settings.maxHistoryItems,
+              },
+            })
+            .then((response: unknown): void => {
+              const resp = response as
+                { success: boolean; error?: string } | undefined;
+              if (resp?.success === true) {
+                setState('done');
+                setTimeout((): void => {
+                  window.close();
+                }, 1500);
+              } else {
+                setError(resp?.error ?? 'CDP capture failed');
                 setState('error');
               }
-            }, 120000);
-          })
-          .catch((): void => {
-            browser.runtime.onMessage.removeListener(listener);
-            setError(
-              'Failed to communicate with content script. Try reloading the page.',
-            );
-            setState('error');
-          });
+            })
+            .catch((err: unknown): void => {
+              setError(String(err));
+              setState('error');
+            });
+        } else {
+          // Classic Stitching Engine
+          const listener: (message: unknown) => void = (
+            message: unknown,
+          ): void => {
+            const msg: Record<string, unknown> = message as Record<
+              string,
+              unknown
+            >;
+            const msgType: string | undefined = msg.type as string | undefined;
+
+            if (msgType === 'captureProgress') {
+              const d: { complete: number } = msg.data as {
+                complete: number;
+              };
+              setProgress(d.complete);
+            } else if (msgType === 'captureBlob') {
+              completed = true;
+              setState('done');
+              browser.runtime.onMessage.removeListener(listener);
+              setTimeout((): void => {
+                window.close();
+              }, 1500);
+            } else if (msgType === 'captureCancelled') {
+              setState('ready');
+              browser.runtime.onMessage.removeListener(listener);
+            } else if (msgType === 'captureError') {
+              completed = true;
+              setError('Capture failed');
+              setState('error');
+              browser.runtime.onMessage.removeListener(listener);
+            }
+          };
+
+          browser.runtime.onMessage.addListener(listener);
+
+          const request: Record<string, unknown> = {
+            type: 'startCapture',
+            data: { mode, format, scale, quality: CAPTURE.DEFAULT_QUALITY },
+          };
+
+          browser.tabs
+            .sendMessage(tabId, request)
+            .then((): void => {
+              setTimeout((): void => {
+                if (!completed) {
+                  browser.runtime.onMessage.removeListener(listener);
+                  setError('Capture timed out');
+                  setState('error');
+                }
+              }, 120000);
+            })
+            .catch((): void => {
+              browser.runtime.onMessage.removeListener(listener);
+              setError(
+                'Failed to communicate with content script. Try reloading the page.',
+              );
+              setState('error');
+            });
+        }
       })
       .catch((): void => {
         setError('Failed to query tabs');
         setState('error');
       });
-  }, [mode, format, scale, settings?.defaultQuality]);
+  }, [mode, format, scale, settings]);
 
-  const handleOpenSettings = useCallback((): void => {
-    browser.runtime.openOptionsPage().catch((): void => {});
-  }, []);
+  if (settings == null) {
+    return (
+      <div className="app">
+        <p className="loading">Loading...</p>
+      </div>
+    );
+  }
 
   const modes: CaptureMode[] = ['fullPage', 'viewport', 'selection'];
+  const deviceList = [...PRESET_DEVICES, ...settings.customDevices];
+  const isEmulationActive = settings.activeDeviceId !== 'current';
 
   return (
     <div className="app">
@@ -186,24 +255,82 @@ function App(): React.ReactElement {
         </button>
       </div>
 
+      <label className="label">Capture Engine</label>
+      <div className="engineGroup">
+        <button
+          className={`engineBtn ${settings.activeEngine === 'classic' && !isEmulationActive ? 'active' : ''}`}
+          onClick={(): void => {
+            updateEngineSettings({
+              activeEngine: 'classic',
+              activeDeviceId: 'current',
+            });
+          }}
+          disabled={state === 'capturing'}
+        >
+          Stitched (Classic)
+        </button>
+        <button
+          className={`engineBtn ${settings.activeEngine === 'cdp' || isEmulationActive ? 'active' : ''}`}
+          onClick={(): void => {
+            updateEngineSettings({ activeEngine: 'cdp' });
+          }}
+          disabled={state === 'capturing'}
+        >
+          Debugger (CDP)
+        </button>
+      </div>
+
+      <label className="label">Device Profile</label>
+      <select
+        className="select"
+        value={settings.activeDeviceId}
+        onChange={(e: React.ChangeEvent<HTMLSelectElement>): void => {
+          const val = e.target.value;
+          updateEngineSettings({
+            activeDeviceId: val,
+            // Enforce cdp if a device profile is selected
+            activeEngine: val !== 'current' ? 'cdp' : settings.activeEngine,
+          });
+          if (val !== 'current' && mode === 'selection') {
+            setMode('fullPage');
+          }
+        }}
+        disabled={state === 'capturing'}
+      >
+        <option value="current">Current Tab (No Emulation)</option>
+        {deviceList.map((d) => (
+          <option key={d.id} value={d.id}>
+            {d.name} ({d.width}x{d.height})
+          </option>
+        ))}
+      </select>
+
       <label className="label">Capture Mode</label>
       <div className="modeGroup">
-        {modes.map((m: CaptureMode): React.ReactElement => (
-          <button
-            key={m}
-            className={`modeBtn ${mode === m ? 'active' : ''}`}
-            onClick={(): void => {
-              setMode(m);
-            }}
-            disabled={state === 'capturing'}
-          >
-            {m === 'fullPage'
-              ? 'Full Page'
-              : m === 'viewport'
-                ? 'Viewport'
-                : 'Selection'}
-          </button>
-        ))}
+        {modes.map((m: CaptureMode): React.ReactElement => {
+          const isDisabled = isEmulationActive && m === 'selection';
+          return (
+            <button
+              key={m}
+              className={`modeBtn ${mode === m ? 'active' : ''}`}
+              onClick={(): void => {
+                setMode(m);
+              }}
+              disabled={state === 'capturing' || isDisabled}
+              title={
+                isDisabled
+                  ? 'Selection is disabled during emulation'
+                  : undefined
+              }
+            >
+              {m === 'fullPage'
+                ? 'Full Page'
+                : m === 'viewport'
+                  ? 'Viewport'
+                  : 'Selection'}
+            </button>
+          );
+        })}
       </div>
 
       <label className="label">Format</label>
@@ -241,9 +368,11 @@ function App(): React.ReactElement {
         <span>10x</span>
       </div>
 
-      {scale > 1 && state === 'ready' && settings?.showZoomWarning === true && (
+      {scale > 1 && state === 'ready' && settings.showZoomWarning && (
         <div className="warning">
-          Output will be scaled up from native capture.
+          {settings.zoomCapture && !isEmulationActive
+            ? 'Page will be zoomed for high-res capture. Page may reflow.'
+            : 'Output will be scaled up from native capture.'}
         </div>
       )}
 
