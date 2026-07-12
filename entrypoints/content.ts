@@ -14,6 +14,7 @@ import {
   getFilename,
 } from '@/lib/captureEngine';
 import { CAPTURE, loadSettings } from '@/lib/captureConfig';
+import { saveHistoryItem } from '@/lib/captureHistory';
 
 let currentRequest: CaptureRequest | null = null;
 let currentSettings: WebShotSettings | null = null;
@@ -85,8 +86,6 @@ async function startCapture(request: CaptureRequest): Promise<void> {
     currentSettings = settings;
     capturedImages = [];
     currentTileIndex = 0;
-    totalWidth = 0;
-    totalHeight = 0;
     originalZoom = document.body.style.zoom || '1';
     originalX = window.scrollX;
     originalY = window.scrollY;
@@ -104,9 +103,12 @@ async function startCapture(request: CaptureRequest): Promise<void> {
   }
 }
 
-function applyZoom(): void {
-  if (currentRequest == null || currentRequest.scale <= 1) return;
-  document.body.style.zoom = String(currentRequest.scale);
+async function applyZoom(scale: number): Promise<void> {
+  if (scale > 1 && currentSettings?.zoomCapture === true) {
+    document.body.style.zoom = String(scale);
+    // Allow layout reflow to settle
+    await new Promise((resolve) => setTimeout(resolve, 150));
+  }
 }
 
 function resetZoom(): void {
@@ -114,7 +116,7 @@ function resetZoom(): void {
 }
 
 function blockInteractions(block: boolean): void {
-  if (block && currentSettings?.blockInteractions !== true) return;
+  if (currentSettings?.blockInteractions !== true) return;
   const styleId: string = 'ws-interaction-block';
   const existing: HTMLStyleElement | null = document.getElementById(
     styleId,
@@ -142,6 +144,8 @@ function hideScrollbars(): void {
 }
 
 async function captureViewport(): Promise<void> {
+  await applyZoom(currentRequest?.scale ?? 1);
+
   const dims: PageDimensions = getPageDimensions();
   captureOffset = { x: window.scrollX, y: window.scrollY };
 
@@ -166,27 +170,19 @@ async function captureViewport(): Promise<void> {
     totalHeight = dims.viewportHeight;
     await finalizeCapture();
   } finally {
+    resetZoom();
     blockInteractions(false);
   }
 }
 
 async function captureFullPage(): Promise<void> {
+  await applyZoom(currentRequest?.scale ?? 1);
+
   const dims: PageDimensions = getPageDimensions();
   totalWidth = dims.fullWidth;
   totalHeight = dims.fullHeight;
-
-  // Zoom to increase capture detail (viewport shrinks in CSS pixels)
-  applyZoom();
-
-  const zoomDims: PageDimensions = {
-    fullWidth: dims.fullWidth,
-    fullHeight: dims.fullHeight,
-    viewportWidth: window.innerWidth,
-    viewportHeight: window.innerHeight,
-    devicePixelRatio: dims.devicePixelRatio,
-  };
   scrollTiles = computeScrollGrid(
-    zoomDims,
+    dims,
     currentSettings?.scrollPad ?? CAPTURE.SCROLL_PAD,
   );
   captureOffset = { x: 0, y: 0 };
@@ -197,17 +193,14 @@ async function captureFullPage(): Promise<void> {
   try {
     await processNextTile();
   } finally {
+    resetZoom();
     blockInteractions(false);
   }
 }
 
 async function captureSelection(): Promise<void> {
-  const sel: {
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-  } | null = await waitForSelection();
+  const sel: { x: number; y: number; width: number; height: number } | null =
+    await waitForSelection();
   if (sel == null) {
     browser.runtime
       .sendMessage({ type: 'captureCancelled' })
@@ -215,11 +208,21 @@ async function captureSelection(): Promise<void> {
     return;
   }
 
+  const scale = currentRequest?.scale ?? 1;
+  const isZoom = currentSettings?.zoomCapture === true && scale > 1;
+
+  if (isZoom) {
+    sel.x *= scale;
+    sel.y *= scale;
+    sel.width *= scale;
+    sel.height *= scale;
+  }
+
+  await applyZoom(scale);
+
   totalWidth = sel.width;
   totalHeight = sel.height;
   captureOffset = { x: sel.x, y: sel.y };
-
-  applyZoom();
 
   hideScrollbars();
   blockInteractions(true);
@@ -246,12 +249,13 @@ async function captureSelection(): Promise<void> {
       return;
     }
 
+    const dims: PageDimensions = getPageDimensions();
     const clippedDims: PageDimensions = {
       fullWidth: sel.width,
       fullHeight: sel.height,
-      viewportWidth: viewportW,
-      viewportHeight: viewportH,
-      devicePixelRatio: window.devicePixelRatio,
+      viewportWidth: dims.viewportWidth,
+      viewportHeight: dims.viewportHeight,
+      devicePixelRatio: dims.devicePixelRatio,
     };
     scrollTiles = computeScrollGrid(
       clippedDims,
@@ -264,6 +268,7 @@ async function captureSelection(): Promise<void> {
     }));
     await processNextTile();
   } finally {
+    resetZoom();
     blockInteractions(false);
   }
 }
@@ -284,11 +289,6 @@ function requestCapture(
       const x = window.scrollX;
       const y = window.scrollY;
 
-      const captureDelay = Math.max(
-        0,
-        currentSettings?.captureDelay ?? CAPTURE.CAPTURE_DELAY,
-      );
-
       setTimeout((): void => {
         browser.runtime
           .sendMessage({ type: 'requestCapture', data: { x, y } })
@@ -307,23 +307,12 @@ function requestCapture(
             clearTimeout(timeoutId);
             reject(err instanceof Error ? err : new Error(String(err)));
           });
-      }, captureDelay);
+      }, currentSettings?.captureDelay ?? CAPTURE.CAPTURE_DELAY);
     },
   );
 }
 
 async function processNextTile(): Promise<void> {
-  if (scrollTiles.length === 0) {
-    browser.runtime
-      .sendMessage({
-        type: 'captureError',
-        data: { message: 'Nothing to capture' },
-      })
-      .catch((): void => {});
-    cleanup();
-    return;
-  }
-
   if (currentTileIndex >= scrollTiles.length) {
     await finalizeCapture();
     return;
@@ -362,47 +351,59 @@ async function processNextTile(): Promise<void> {
 
 async function finalizeCapture(): Promise<void> {
   if (currentRequest == null || capturedImages.length === 0) {
-    browser.runtime
-      .sendMessage({
-        type: 'captureError',
-        data: { message: 'No capture data' },
-      })
-      .catch((): void => {});
-    cleanup();
     return;
   }
 
-  try {
-    const dataUri: string = await exportCaptureAsDataUri();
-    const filename: string = getFilename(
-      window.location.href,
-      currentRequest.format,
-    );
+  const dataUri: string = await exportCaptureAsDataUri();
+  const template =
+    currentSettings?.filenameTemplate ?? 'webshot-{title}-{date}-{time}';
+  const filename: string = getFilename(
+    window.location.href,
+    currentRequest.format,
+    document.title,
+    template,
+  );
 
-    const a: HTMLAnchorElement = document.createElement('a');
-    a.href = dataUri;
-    a.download = filename;
-    a.click();
+  const a: HTMLAnchorElement = document.createElement('a');
+  a.href = dataUri;
+  a.download = filename;
+  a.click();
 
-    browser.runtime.sendMessage({ type: 'captureBlob' }).catch((): void => {});
-  } catch {
-    browser.runtime
-      .sendMessage({ type: 'captureError', data: { message: 'Export failed' } })
-      .catch((): void => {});
-  } finally {
-    cleanup();
-  }
+  const scale = currentRequest.scale;
+  const format = currentRequest.format;
+  const maxHistoryItems = currentSettings?.maxHistoryItems ?? 50;
+
+  await saveHistoryItem(
+    {
+      title: document.title,
+      url: window.location.href,
+      format,
+      scale,
+      size: Math.round((dataUri.length * 3) / 4),
+    },
+    dataUri,
+    maxHistoryItems,
+  ).catch((): void => {});
+
+  browser.runtime.sendMessage({ type: 'captureBlob' }).catch((): void => {});
+  cleanup();
 }
 
 async function exportCaptureAsDataUri(): Promise<string> {
   const r: CaptureRequest = currentRequest as CaptureRequest;
+  const scale = r.scale;
+  const isZoom = currentSettings?.zoomCapture === true && scale > 1;
+  const activeScale = isZoom ? 1 : scale;
+  const pdfMultiPage = currentSettings?.pdfMultiPage ?? false;
+
   const blob: Blob = await compositeAndExport(
     capturedImages,
     totalWidth,
     totalHeight,
     r.format,
-    r.scale,
+    activeScale,
     r.quality,
+    pdfMultiPage,
   );
   return blobToDataUri(blob);
 }
@@ -586,8 +587,6 @@ function waitForSelection(): Promise<{
 }
 
 function cleanup(): void {
-  blockInteractions(false);
-
   currentRequest = null;
   currentSettings = null;
   capturedImages = [];
@@ -603,4 +602,6 @@ function cleanup(): void {
     document.body.style.overflowY = originalBodyOverflowY;
   }
   window.scrollTo(originalX, originalY);
+
+  blockInteractions(false);
 }
