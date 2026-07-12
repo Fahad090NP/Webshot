@@ -146,8 +146,6 @@ function hideScrollbars(): void {
 }
 
 async function captureViewport(): Promise<void> {
-  await applyZoom(currentRequest?.scale ?? 1);
-
   const dims: PageDimensions = getPageDimensions();
   captureOffset = { x: window.scrollX, y: window.scrollY };
 
@@ -172,7 +170,6 @@ async function captureViewport(): Promise<void> {
     totalHeight = dims.viewportHeight;
     await finalizeCapture();
   } finally {
-    resetZoom();
     blockInteractions(false);
   }
 }
@@ -410,7 +407,10 @@ async function finalizeCapture(): Promise<void> {
 async function exportCaptureAsDataUri(): Promise<string> {
   const r: CaptureRequest = currentRequest as CaptureRequest;
   const scale = r.scale;
-  const isZoom = currentSettings?.zoomCapture === true && scale > 1;
+  const isZoom =
+    currentSettings?.zoomCapture === true &&
+    scale > 1 &&
+    currentRequest?.mode !== 'viewport';
   const activeScale = isZoom ? 1 : scale;
 
   const blob: Blob = await compositeAndExport(

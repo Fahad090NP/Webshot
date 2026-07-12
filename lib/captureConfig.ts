@@ -112,3 +112,26 @@ export async function loadSettings(): Promise<WebShotSettings> {
 export async function saveSettings(settings: WebShotSettings): Promise<void> {
   await browser.storage.local.set({ settings: normalizeSettings(settings) });
 }
+
+export interface LastCapturePrefs {
+  scale: number;
+  format: OutputFormat;
+}
+
+const LAST_PREFS_KEY = 'lastCapturePrefs';
+
+export async function loadLastCapturePrefs(): Promise<LastCapturePrefs | null> {
+  try {
+    const result: { lastCapturePrefs?: LastCapturePrefs } =
+      await browser.storage.local.get(LAST_PREFS_KEY);
+    return result.lastCapturePrefs ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveLastCapturePrefs(
+  prefs: LastCapturePrefs,
+): Promise<void> {
+  await browser.storage.local.set({ lastCapturePrefs: prefs });
+}

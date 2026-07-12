@@ -1,7 +1,13 @@
 // Popup interface for Webshot extension: handles mode selection, resolution scale, export format, and orchestrates content script messaging.
 
 import { useState, useCallback, useEffect } from 'react';
-import { CAPTURE, loadSettings } from '@/lib/captureConfig';
+import {
+  CAPTURE,
+  loadSettings,
+  loadLastCapturePrefs,
+  saveLastCapturePrefs,
+  type LastCapturePrefs,
+} from '@/lib/captureConfig';
 import type { CaptureMode, OutputFormat, WebShotSettings } from '@/lib/types';
 import './App.css';
 
@@ -56,8 +62,14 @@ function App(): React.ReactElement {
     loadSettings()
       .then((s: WebShotSettings): void => {
         setSettings(s);
-        setFormat(s.defaultFormat);
-        setScale(s.defaultScale);
+      })
+      .catch((): void => {});
+    loadLastCapturePrefs()
+      .then((prefs: LastCapturePrefs | null): void => {
+        if (prefs != null) {
+          setFormat(prefs.format);
+          setScale(prefs.scale);
+        }
       })
       .catch((): void => {});
 
@@ -127,6 +139,8 @@ function App(): React.ReactElement {
             quality: settings?.defaultQuality ?? CAPTURE.DEFAULT_QUALITY,
           },
         };
+
+        saveLastCapturePrefs({ scale, format }).catch((): void => {});
 
         browser.tabs
           .sendMessage(tabList[0].id, request)
